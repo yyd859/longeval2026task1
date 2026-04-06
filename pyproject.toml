@@ -1,0 +1,36 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "longeval-sci"
+version = "0.2.0"
+description = "Official-aligned Run 1 baselines for LongEval-Sci 2026"
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = [
+  "numpy>=1.24",
+  "PyYAML>=6.0",
+  "ir-datasets-longeval>=0.0.12",
+]
+
+[project.optional-dependencies]
+dev = [
+  "pytest>=8.0",
+]
+baselines = [
+  "pyterrier>=0.13.0",
+  "sentence-transformers>=3.0.0",
+  "faiss-cpu>=1.8.0",
+  "pytrec_eval-terrier>=0.5.6",
+]
+
+[tool.setuptools]
+package-dir = {"" = "src"}
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+pythonpath = ["src"]
+testpaths = ["tests"]

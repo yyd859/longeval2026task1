@@ -1,0 +1,29 @@
+run_name: dense_pt
+pipeline: dense_pt
+
+dataset:
+  backend: ir_datasets_longeval
+  dataset_name: longeval-sci-2026/snapshot-1
+  snapshot_id: snapshot-1
+  qrels_variant: dctr
+
+retrieval:
+  type: dense
+  model_name: intfloat/e5-base-v2
+  text_mode: title_abstract
+  top_k: 100
+  index_dir: indexes/dense_pt
+  normalize_embeddings: true
+  query_prefix: "query: "
+  document_prefix: "passage: "
+
+rerank:
+  enabled: false
+
+output:
+  output_dir: outputs/dense_pt
+
+runtime:
+  device: cpu
+  batch_size: 16
+  seed: 42
