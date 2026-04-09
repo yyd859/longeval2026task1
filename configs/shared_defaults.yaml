@@ -1,0 +1,49 @@
+dataset:
+  backend: local_snapshot_cache
+  dataset_root: .cache/ir_datasets/longeval-sci-2026
+  snapshot_ids:
+    - snapshot-1
+    - snapshot-2
+    - snapshot-3
+  qrels_variant: dctr
+  cache_dir: .cache/ir_datasets
+  load_fulltext: false
+
+retrieval:
+  type: dense
+  text_mode: title_abstract
+  top_k: 100
+  index_root: indexes
+  model_name: Qwen/Qwen3-Embedding-4B
+  normalize_embeddings: true
+  query_prefix: "query: "
+  document_prefix: "passage: "
+  candidate_k: 100
+  lexical_text_mode: full_text
+  dense_text_mode: title_abstract
+  encode_chunk_size: 2048
+  search_chunk_size: 50000
+  service_base_url: http://localhost:6543/v1
+
+rerank:
+  enabled: false
+  model_name: cross-encoder/ms-marco-MiniLM-L-12-v2
+  candidate_k: 100
+  top_k: 100
+
+output:
+  output_root: outputs
+  reports_root: outputs/reports
+
+runtime:
+  device: cpu
+  batch_size: 16
+  seed: 42
+  pyterrier_memory_mb: 12288
+
+metrics:
+  - ndcg_cut_10
+  - ndcg_cut_1000
+  - map
+  - recall_100
+  - recall_1000

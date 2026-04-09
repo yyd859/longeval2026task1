@@ -1,0 +1,15 @@
+extends: shared_defaults.yaml
+run_name: custom_dense_rerank
+pipeline: custom_dense_rerank
+
+retrieval:
+  type: dense
+  text_mode: title_abstract
+  top_k: 1000
+  model_name: intfloat/e5-base-v2
+
+rerank:
+  enabled: true
+  model_name: cross-encoder/ms-marco-MiniLM-L-12-v2
+  candidate_k: 1000
+  top_k: 1000

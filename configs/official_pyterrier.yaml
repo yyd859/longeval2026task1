@@ -1,0 +1,12 @@
+extends: shared_defaults.yaml
+run_name: official_pyterrier
+pipeline: official_pyterrier
+
+retrieval:
+  type: bm25
+  text_mode: title_abstract
+  top_k: 1000
+  model_name: null
+
+output:
+  run_filename: run.txt

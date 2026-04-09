@@ -13,9 +13,9 @@ def infer_format(path: str | Path, explicit_format: str | None = None) -> str:
     if explicit_format:
         return explicit_format.lower()
     suffix = Path(path).suffix.lower()
-    mapping = {".json": "json", ".jsonl": "jsonl", ".tsv": "tsv", ".csv": "csv"}
+    mapping = {".json": "json", ".jsonl": "jsonl", ".tsv": "tsv", ".csv": "csv", ".txt": "txt"}
     if suffix not in mapping:
-        raise ValueError(f"Unsupported file extension for {path!s}. Expected one of: .json, .jsonl, .tsv, .csv")
+        raise ValueError(f"Unsupported file extension for {path!s}. Expected one of: .json, .jsonl, .tsv, .csv, .txt")
     return mapping[suffix]
 
 
@@ -53,6 +53,28 @@ def read_records(path: str | Path, file_format: str | None = None) -> list[dict[
                     records.append(ensure_dict(json.loads(stripped), record_path))
                 except json.JSONDecodeError as exc:
                     raise ValueError(f"Invalid JSONL in {record_path} at line {line_number}: {exc}") from exc
+        return records
+
+    if format_name == "txt":
+        records: list[dict[str, Any]] = []
+        with record_path.open("r", encoding="utf-8") as handle:
+            for line_number, line in enumerate(handle, start=1):
+                stripped = line.strip()
+                if not stripped:
+                    continue
+                parts = stripped.split()
+                if len(parts) != 4:
+                    raise ValueError(
+                        f"Invalid qrels text line in {record_path} at line {line_number}: expected 4 columns"
+                    )
+                records.append(
+                    {
+                        "query_id": parts[0],
+                        "iter": parts[1],
+                        "doc_id": parts[2],
+                        "relevance": parts[3],
+                    }
+                )
         return records
 
     delimiter = "\t" if format_name == "tsv" else ","

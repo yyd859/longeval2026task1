@@ -4,8 +4,8 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "longeval-sci"
-version = "0.2.0"
-description = "Official-aligned Run 1 baselines for LongEval-Sci 2026"
+version = "0.3.0"
+description = "Production-ready baseline experimentation for LongEval 2026 Task 1"
 readme = "README.md"
 requires-python = ">=3.11"
 dependencies = [
@@ -15,9 +15,6 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-dev = [
-  "pytest>=8.0",
-]
 baselines = [
   "pyterrier>=0.13.0",
   "sentence-transformers>=3.0.0",
@@ -30,7 +27,3 @@ package-dir = {"" = "src"}
 
 [tool.setuptools.packages.find]
 where = ["src"]
-
-[tool.pytest.ini_options]
-pythonpath = ["src"]
-testpaths = ["tests"]

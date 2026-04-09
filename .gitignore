@@ -1,0 +1,17 @@
+.venv/
+.cache/
+outputs/
+!outputs/reports/
+!outputs/reports/train_snapshot1/
+!outputs/reports/train_snapshot1/summary.md
+!outputs/reports/train_snapshot1/comparison_dctr.csv
+!outputs/reports/train_snapshot1/comparison_raw.csv
+!outputs/reports/train_snapshot1/comparison_all.csv
+indexes/
+__pycache__/
+*.py[cod]
+*.pkl
+*.npy
+*.faiss
+*.egg-info/
+.vscode/.ropeproject/

@@ -8,19 +8,23 @@ from typing import Any
 
 try:
     import yaml
-except ImportError:  # pragma: no cover - exercised in lightweight environments
+except ImportError:  # pragma: no cover
     yaml = None
 
 
 DEFAULT_SNAPSHOTS = ("snapshot-1", "snapshot-2", "snapshot-3")
+DEFAULT_METRICS = ("ndcg_cut_10", "ndcg_cut_1000", "map", "recall_100", "recall_1000")
 
 
 @dataclass(slots=True)
 class DatasetConfig:
-    backend: str = "ir_datasets_longeval"
-    dataset_name: str = "longeval-sci-2026/snapshot-1"
-    snapshot_id: str | None = None
-    qrels_variant: str | None = "dctr"
+    backend: str = "local_snapshot_cache"
+    dataset_root: str = ".cache/ir_datasets/longeval-sci-2026"
+    snapshot_ids: list[str] = field(default_factory=lambda: list(DEFAULT_SNAPSHOTS))
+    split: str | None = None
+    qrels_variant: str = "dctr"
+    cache_dir: str | None = ".cache/ir_datasets"
+    load_fulltext: bool = False
     corpus_path: str | None = None
     queries_path: str | None = None
     qrels_path: str | None = None
@@ -37,14 +41,17 @@ class RetrievalConfig:
     type: str
     text_mode: str = "title_abstract"
     top_k: int = 100
-    index_dir: str | None = None
+    index_root: str | None = "indexes"
     model_name: str | None = None
     normalize_embeddings: bool = True
     query_prefix: str = ""
     document_prefix: str = ""
     candidate_k: int = 100
-    bm25: dict[str, Any] = field(default_factory=dict)
-    dense: dict[str, Any] = field(default_factory=dict)
+    lexical_text_mode: str = "full_text"
+    dense_text_mode: str = "title_abstract"
+    encode_chunk_size: int = 2048
+    search_chunk_size: int = 50000
+    service_base_url: str = "http://localhost:6543/v1"
 
 
 @dataclass(slots=True)
@@ -52,17 +59,16 @@ class RerankConfig:
     enabled: bool = False
     model_name: str = "cross-encoder/ms-marco-MiniLM-L-12-v2"
     candidate_k: int = 100
-    top_k: int | None = None
+    top_k: int = 100
 
 
 @dataclass(slots=True)
 class OutputConfig:
-    output_dir: str = "outputs"
+    output_root: str = "outputs"
+    reports_root: str = "outputs/reports"
     run_filename: str = "run.txt"
     metrics_filename: str = "metrics.json"
     per_query_metrics_filename: str = "per_query_metrics.csv"
-    longitudinal_json_filename: str = "longitudinal_summary.json"
-    longitudinal_csv_filename: str = "longitudinal_summary.csv"
 
 
 @dataclass(slots=True)
@@ -71,6 +77,7 @@ class RuntimeConfig:
     batch_size: int = 32
     seed: int = 42
     require_gpu: bool = False
+    pyterrier_memory_mb: int | None = 12288
 
 
 @dataclass(slots=True)
@@ -79,9 +86,10 @@ class ExperimentConfig:
     pipeline: str
     dataset: DatasetConfig
     retrieval: RetrievalConfig
-    rerank: RerankConfig
-    output: OutputConfig
+    rerank: RerankConfig = field(default_factory=RerankConfig)
+    output: OutputConfig = field(default_factory=OutputConfig)
     runtime: RuntimeConfig = field(default_factory=RuntimeConfig)
+    metrics: list[str] = field(default_factory=lambda: list(DEFAULT_METRICS))
 
 
 def _resolve_path(base_dir: Path, value: str | None) -> str | None:
@@ -93,133 +101,107 @@ def _resolve_path(base_dir: Path, value: str | None) -> str | None:
     return str((base_dir / path).resolve())
 
 
-def _parse_scalar(value: str) -> Any:
-    lowered = value.lower()
-    if lowered in {"true", "false"}:
-        return lowered == "true"
-    if lowered in {"null", "none"}:
-        return None
-    if (value.startswith('"') and value.endswith('"')) or (value.startswith("'") and value.endswith("'")):
-        return value[1:-1]
-    try:
-        if "." in value:
-            return float(value)
-        return int(value)
-    except ValueError:
-        return value
+def _deep_merge(parent: dict[str, Any], child: dict[str, Any]) -> dict[str, Any]:
+    merged = dict(parent)
+    for key, value in child.items():
+        if key in merged and isinstance(merged[key], dict) and isinstance(value, dict):
+            merged[key] = _deep_merge(merged[key], value)
+        else:
+            merged[key] = value
+    return merged
 
 
 def _simple_yaml_load(text: str) -> dict[str, Any]:
-    root: dict[str, Any] = {}
-    stack: list[tuple[int, dict[str, Any]]] = [(-1, root)]
-
-    for raw_line in text.splitlines():
-        if not raw_line.strip() or raw_line.lstrip().startswith("#"):
-            continue
-        indent = len(raw_line) - len(raw_line.lstrip(" "))
-        stripped = raw_line.strip()
-        if ":" not in stripped:
-            raise ValueError(f"Unsupported YAML line: {raw_line}")
-        key, value = stripped.split(":", maxsplit=1)
-        key = key.strip()
-        value = value.strip()
-
-        while stack and indent <= stack[-1][0]:
-            stack.pop()
-        if not stack:
-            raise ValueError(f"Invalid YAML indentation near line: {raw_line}")
-
-        parent = stack[-1][1]
-        if value == "":
-            child: dict[str, Any] = {}
-            parent[key] = child
-            stack.append((indent, child))
-        else:
-            parent[key] = _parse_scalar(value)
-    return root
+    if yaml is None:
+        raise RuntimeError("PyYAML is required to load configs in this repository")
+    return yaml.safe_load(text) or {}
 
 
 def _load_yaml(path: Path) -> dict[str, Any]:
     text = path.read_text(encoding="utf-8")
-    if yaml is not None:
-        return yaml.safe_load(text) or {}
-    return _simple_yaml_load(text)
+    raw = yaml.safe_load(text) if yaml is not None else _simple_yaml_load(text)
+    raw = raw or {}
+    extends = raw.pop("extends", None)
+    if extends:
+        parent_path = (path.parent / extends).resolve()
+        parent = _load_yaml(parent_path)
+        raw = _deep_merge(parent, raw)
+    return raw
 
 
-def resolve_snapshot_id(dataset_name: str, snapshot_id: str | None = None) -> str:
-    """Infer the snapshot identifier for an experiment."""
-    if snapshot_id:
-        return snapshot_id
-    for candidate in DEFAULT_SNAPSHOTS:
-        if candidate in dataset_name:
-            return candidate
-    return "snapshot-unknown"
-
-
-def resolve_dataset_name(dataset: DatasetConfig) -> str:
-    """Resolve the canonical dataset identifier including qrels variant when needed."""
-    dataset_name = dataset.dataset_name
-    if dataset.backend != "ir_datasets_longeval":
-        return dataset_name
-    if dataset.qrels_variant and not dataset_name.endswith(f"/{dataset.qrels_variant}"):
-        if dataset_name.endswith("/sci") or dataset_name.endswith("/snapshot-1") or dataset_name.endswith("/snapshot-2") or dataset_name.endswith("/snapshot-3"):
-            return f"{dataset_name}/{dataset.qrels_variant}"
+def snapshot_dataset_name(dataset: DatasetConfig, snapshot_id: str) -> str:
+    """Return the dataset identifier for a specific snapshot."""
+    dataset_name = f"{dataset.dataset_root}/{snapshot_id}"
+    if dataset.split:
+        dataset_name = f"{dataset_name}/{dataset.split}"
+    if dataset.backend == "ir_datasets_longeval" and dataset.qrels_variant:
+        return f"{dataset_name}/{dataset.qrels_variant}"
     return dataset_name
 
 
-def snapshot_output_dir(config: ExperimentConfig, snapshot_id: str | None = None) -> Path:
-    """Return the output directory for a snapshot."""
-    resolved_snapshot = resolve_snapshot_id(config.dataset.dataset_name, snapshot_id or config.dataset.snapshot_id)
-    return Path(config.output.output_dir) / resolved_snapshot
+def snapshot_output_name(dataset: DatasetConfig, snapshot_id: str) -> str:
+    """Return the output folder name for a snapshot, including split when relevant."""
+    if dataset.split:
+        return f"{snapshot_id}-{dataset.split}"
+    return snapshot_id
 
 
-def run_path_for_snapshot(config: ExperimentConfig, snapshot_id: str | None = None) -> Path:
-    """Return the run file path for a snapshot."""
-    return snapshot_output_dir(config, snapshot_id) / config.output.run_filename
+def baseline_output_dir(config: ExperimentConfig) -> Path:
+    """Return the root output directory for a baseline."""
+    return Path(config.output.output_root) / config.run_name
 
 
-def metrics_path_for_snapshot(config: ExperimentConfig, snapshot_id: str | None = None) -> Path:
-    """Return the aggregate metrics path for a snapshot."""
-    return snapshot_output_dir(config, snapshot_id) / config.output.metrics_filename
+def baseline_reports_dir(config: ExperimentConfig) -> Path:
+    """Return the reports directory for a baseline."""
+    return Path(config.output.reports_root) / config.run_name
 
 
-def per_query_metrics_path_for_snapshot(config: ExperimentConfig, snapshot_id: str | None = None) -> Path:
-    """Return the per-query metrics path for a snapshot."""
-    return snapshot_output_dir(config, snapshot_id) / config.output.per_query_metrics_filename
+def snapshot_run_path(config: ExperimentConfig, snapshot_id: str) -> Path:
+    return baseline_output_dir(config) / snapshot_output_name(config.dataset, snapshot_id) / config.output.run_filename
+
+
+def snapshot_metrics_path(config: ExperimentConfig, snapshot_id: str) -> Path:
+    return baseline_output_dir(config) / snapshot_output_name(config.dataset, snapshot_id) / config.output.metrics_filename
+
+
+def snapshot_per_query_metrics_path(config: ExperimentConfig, snapshot_id: str) -> Path:
+    return baseline_output_dir(config) / snapshot_output_name(config.dataset, snapshot_id) / config.output.per_query_metrics_filename
+
+
+def snapshot_index_dir(config: ExperimentConfig, snapshot_id: str) -> Path | None:
+    if not config.retrieval.index_root:
+        return None
+    return Path(config.retrieval.index_root) / config.run_name / snapshot_id
 
 
 def load_config(path: str | Path) -> ExperimentConfig:
     """Load an experiment config from YAML."""
     config_path = Path(path).resolve()
     raw = _load_yaml(config_path)
+    base_dir = config_path.parent.parent if config_path.parent.name == "configs" else config_path.parent
 
-    dataset = DatasetConfig(**raw["dataset"])
+    dataset = DatasetConfig(**raw.get("dataset", {}))
     retrieval = RetrievalConfig(**raw["retrieval"])
     rerank = RerankConfig(**raw.get("rerank", {}))
     output = OutputConfig(**raw.get("output", {}))
     runtime = RuntimeConfig(**raw.get("runtime", {}))
+    metrics = list(raw.get("metrics", list(DEFAULT_METRICS)))
 
-    base_dir = config_path.parent.parent if config_path.parent.name == "configs" else config_path.parent
+    dataset.cache_dir = _resolve_path(base_dir, dataset.cache_dir)
     dataset.corpus_path = _resolve_path(base_dir, dataset.corpus_path)
     dataset.queries_path = _resolve_path(base_dir, dataset.queries_path)
     dataset.qrels_path = _resolve_path(base_dir, dataset.qrels_path)
-    output.output_dir = _resolve_path(base_dir, output.output_dir) or output.output_dir
-    retrieval.index_dir = _resolve_path(base_dir, retrieval.index_dir)
-
-    if retrieval.bm25.get("index_dir"):
-        retrieval.bm25["index_dir"] = _resolve_path(base_dir, retrieval.bm25["index_dir"])
-    if retrieval.dense.get("index_dir"):
-        retrieval.dense["index_dir"] = _resolve_path(base_dir, retrieval.dense["index_dir"])
-
-    if not dataset.snapshot_id:
-        dataset.snapshot_id = resolve_snapshot_id(dataset.dataset_name)
+    output.output_root = _resolve_path(base_dir, output.output_root) or output.output_root
+    output.reports_root = _resolve_path(base_dir, output.reports_root) or output.reports_root
+    retrieval.index_root = _resolve_path(base_dir, retrieval.index_root)
 
     return ExperimentConfig(
         run_name=raw["run_name"],
-        pipeline=raw.get("pipeline", retrieval.type),
+        pipeline=raw["pipeline"],
         dataset=dataset,
         retrieval=retrieval,
         rerank=rerank,
         output=output,
         runtime=runtime,
+        metrics=metrics,
     )

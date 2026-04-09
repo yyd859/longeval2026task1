@@ -1,0 +1,9 @@
+extends: shared_defaults.yaml
+run_name: custom_lexical_fulltext
+pipeline: custom_lexical_fulltext
+
+retrieval:
+  type: bm25
+  text_mode: full_text
+  top_k: 1000
+  model_name: null

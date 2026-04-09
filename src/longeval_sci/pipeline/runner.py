@@ -2,6 +2,6 @@
 
 from __future__ import annotations
 
-from longeval_sci.baselines.runner import DEFAULT_METRICS, RunArtifacts, run_pipeline
+from longeval_sci.baselines.runner import BaselineRunResult, SnapshotRunResult, run_baseline
 
-__all__ = ["DEFAULT_METRICS", "RunArtifacts", "run_pipeline"]
+__all__ = ["BaselineRunResult", "SnapshotRunResult", "run_baseline"]

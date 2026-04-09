@@ -13,7 +13,8 @@ def write_trec_run(results: list[SearchResult], path: str | Path) -> None:
     """Write search results in standard TREC run format."""
     output_path = Path(path)
     output_path.parent.mkdir(parents=True, exist_ok=True)
-    with output_path.open("w", encoding="utf-8", newline="") as handle:
+    opener = gzip.open if output_path.suffix == ".gz" else Path.open
+    with opener(output_path, "wt", encoding="utf-8", newline="") as handle:
         for result in results:
             handle.write(
                 f"{result.query_id} Q0 {result.doc_id} {result.rank} {result.score:.6f} {result.run_name}\n"

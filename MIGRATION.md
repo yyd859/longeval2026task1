@@ -1,55 +1,49 @@
 # Migration Note
 
+## What Was Removed
+
+- redundant helper scripts for partial pipeline steps
+- redundant and test-only configs from `configs/`
+- the `data/` smoke-data workflow
+- one-snapshot-first evaluation assumptions
+
+Tiny synthetic data remains only under `tests/fixtures/`.
+
 ## What Changed
 
-- The repository is now **official-dataset-first**.
-- Default execution uses `ir-datasets-longeval` instead of local toy files.
-- Baseline runner names now align with the official LongEval baselines:
-  - `bm25_pt`
-  - `dense_pt`
-  - `dense_rerank`
-- Outputs are now organized per snapshot under a run root such as `outputs/bm25_pt/snapshot-1/run.txt`.
-- Tiny synthetic data moved from `data/` to `tests/fixtures/`.
-- Longitudinal evaluation now produces JSON and CSV summaries across `snapshot-1`, `snapshot-2`, and `snapshot-3`.
+- the repository now centers on **five canonical baselines**
+- each baseline runs across **snapshot-1**, **snapshot-2**, and **snapshot-3** by default
+- outputs are organized per method and per snapshot
+- the consolidated report now includes machine-readable files and a human-readable comparison table
+- the repo uses a project-local `.venv` and workspace-local `ir_datasets` cache
 
-## How To Run The New Pipeline
+## New Canonical Commands
 
-Inspect a dataset:
+Run all five baselines across all three snapshots:
 
-```bash
-python scripts/inspect_dataset.py --dataset longeval-sci-2026/snapshot-1 --qrels-variant dctr
+```powershell
+python scripts/run_all_baselines.py
 ```
 
-Run the lexical baseline:
+Run one baseline:
 
-```bash
-python scripts/run_baseline_pyterrier.py --dataset longeval-sci-2026/snapshot-1 --output-dir outputs/bm25_pt --index-dir indexes/bm25_pt
+```powershell
+python scripts/run_official_pyterrier.py
+python scripts/run_official_pyterrier_dense.py
+python scripts/run_custom_lexical_fulltext.py
+python scripts/run_custom_dense_rerank.py
+python scripts/run_custom_hybrid_union_rerank.py
 ```
 
-Run the dense baseline:
+Run the tests:
 
-```bash
-python scripts/run_baseline_pyterrier_dense.py --dataset longeval-sci-2026/snapshot-1 --output-dir outputs/dense_pt --index-dir indexes/dense_pt
+```powershell
+.\.venv\Scripts\python.exe -m unittest discover tests
 ```
 
-Run dense + rerank from config:
+## How The New Workflow Works
 
-```bash
-python scripts/run_pipeline.py --config configs/dense_rerank.yaml --pipeline dense_rerank
-```
-
-Evaluate across snapshots:
-
-```bash
-python scripts/evaluate_longitudinal.py --runs-dir outputs/bm25_pt --qrels-variant dctr
-```
-
-## What Remains For Later Runs
-
-- explicit temporal scoring
-- citation-aware retrieval features
-- historical query reuse
-- query clustering transfer
-- trigger and update-policy models
-
-Those remain future work for Run 2 and Run 3.
+1. Each baseline config defines one method.
+2. The runner executes that method across all three official snapshots.
+3. Each snapshot gets its own `run.txt`, `metrics.json`, and `per_query_metrics.csv`.
+4. The suite runner writes a consolidated comparison report across methods and snapshots.
