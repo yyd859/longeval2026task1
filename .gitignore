@@ -1,6 +1,6 @@
 .venv/
 .cache/
-outputs/
+outputs/*
 !outputs/reports/
 !outputs/reports/train_snapshot1/
 !outputs/reports/train_snapshot1/summary.md

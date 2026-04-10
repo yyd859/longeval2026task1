@@ -1,0 +1,59 @@
+{
+  "rows": [
+    {
+      "method": "official_pyterrier",
+      "family": "official_bm25",
+      "qrels_variant": "raw",
+      "run_path": "outputs/official_pyterrier/snapshot-1-train/run.txt",
+      "ndcg_cut_10": 0.3309780749793819,
+      "ndcg_cut_1000": 0.503358590921202,
+      "map": 0.26578908761232545,
+      "recall_100": 0.6831384955595388,
+      "recall_1000": 0.856086684751824
+    },
+    {
+      "method": "reference_qwen3",
+      "family": "official_qwen_reference",
+      "qrels_variant": "raw",
+      "run_path": "outputs/baseline_reference/qwen3-snapshot-train-run",
+      "ndcg_cut_10": 0.31060204162806027,
+      "ndcg_cut_1000": 0.4874811818577431,
+      "map": 0.2401879205128772,
+      "recall_100": 0.6379022535759477,
+      "recall_1000": 0.8555038235857043
+    },
+    {
+      "method": "custom_lexical_fulltext",
+      "family": "custom",
+      "qrels_variant": "raw",
+      "run_path": "outputs/custom_lexical_fulltext/snapshot-1-train/run.txt",
+      "ndcg_cut_10": 0.3636536257610053,
+      "ndcg_cut_1000": 0.5503703274946872,
+      "map": 0.28990752060919944,
+      "recall_100": 0.7323558145307223,
+      "recall_1000": 0.9205377832264199
+    },
+    {
+      "method": "custom_dense_rerank",
+      "family": "custom",
+      "qrels_variant": "raw",
+      "run_path": "outputs/custom_dense_rerank/snapshot-1-train/run.txt",
+      "ndcg_cut_10": 0.1456623561250156,
+      "ndcg_cut_1000": 0.18921119329969552,
+      "map": 0.08448257240764509,
+      "recall_100": 0.2837117566341704,
+      "recall_1000": 0.30440255603085214
+    },
+    {
+      "method": "custom_hybrid_union_rerank",
+      "family": "custom",
+      "qrels_variant": "raw",
+      "run_path": "outputs/custom_hybrid_union_rerank/snapshot-1-train/run.txt",
+      "ndcg_cut_10": 0.1504001200898438,
+      "ndcg_cut_1000": 0.3946735509524882,
+      "map": 0.12880444630303575,
+      "recall_100": 0.5453678393329735,
+      "recall_1000": 0.9359432991670329
+    }
+  ]
+}

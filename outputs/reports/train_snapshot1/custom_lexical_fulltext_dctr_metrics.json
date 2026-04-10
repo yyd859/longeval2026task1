@@ -1,0 +1,11 @@
+{
+  "dataset_name": ".cache/ir_datasets/longeval-sci-2026/snapshot-1/train",
+  "metrics": {
+    "map": 0.28526696916176536,
+    "ndcg_cut_10": 0.33017325367375333,
+    "ndcg_cut_1000": 0.5077353847617554,
+    "recall_100": 0.7393793873631186,
+    "recall_1000": 0.9245427700696421
+  },
+  "snapshot_id": "snapshot-1"
+}

@@ -1,0 +1,11 @@
+method,family,qrels_variant,run_path,ndcg_cut_10,ndcg_cut_1000,map,recall_100,recall_1000
+official_pyterrier,official_bm25,dctr,outputs/official_pyterrier/snapshot-1-train/run.txt,0.29221559108544737,0.45639639909005075,0.2572624910389203,0.6836081280512302,0.8580615587340512
+reference_qwen3,official_qwen_reference,dctr,outputs/baseline_reference/qwen3-snapshot-train-run,0.282026334517185,0.44828436674215977,0.23777381921846763,0.6389806065954771,0.8613187064152928
+custom_lexical_fulltext,custom,dctr,outputs/custom_lexical_fulltext/snapshot-1-train/run.txt,0.33017325367375333,0.5077353847617554,0.28526696916176536,0.7393793873631186,0.9245427700696421
+custom_dense_rerank,custom,dctr,outputs/custom_dense_rerank/snapshot-1-train/run.txt,0.12840069188629058,0.168613039896847,0.08533659014349393,0.2924669360952322,0.3106309289651074
+custom_hybrid_union_rerank,custom,dctr,outputs/custom_hybrid_union_rerank/snapshot-1-train/run.txt,0.13709032247623543,0.3579710091723745,0.12448478563163165,0.5315712641761043,0.9387579763199453
+official_pyterrier,official_bm25,raw,outputs/official_pyterrier/snapshot-1-train/run.txt,0.3309780749793819,0.503358590921202,0.26578908761232545,0.6831384955595388,0.856086684751824
+reference_qwen3,official_qwen_reference,raw,outputs/baseline_reference/qwen3-snapshot-train-run,0.31060204162806027,0.4874811818577431,0.2401879205128772,0.6379022535759477,0.8555038235857043
+custom_lexical_fulltext,custom,raw,outputs/custom_lexical_fulltext/snapshot-1-train/run.txt,0.3636536257610053,0.5503703274946872,0.28990752060919944,0.7323558145307223,0.9205377832264199
+custom_dense_rerank,custom,raw,outputs/custom_dense_rerank/snapshot-1-train/run.txt,0.1456623561250156,0.18921119329969552,0.08448257240764509,0.2837117566341704,0.30440255603085214
+custom_hybrid_union_rerank,custom,raw,outputs/custom_hybrid_union_rerank/snapshot-1-train/run.txt,0.1504001200898438,0.3946735509524882,0.12880444630303575,0.5453678393329735,0.9359432991670329

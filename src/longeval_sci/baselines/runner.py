@@ -7,7 +7,7 @@ import json
 from copy import deepcopy
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 
 from longeval_sci.config import (
     ExperimentConfig,
@@ -257,7 +257,9 @@ def _run_official_pyterrier_dense(bundle: DatasetBundle, config: ExperimentConfi
 
     pt = _ensure_pyterrier_started(config.runtime.pyterrier_memory_mb)
 
-    class VLLMEncoder(pt.Transformer):
+    transformer_base = cast(type[Any], pt.Transformer)
+
+    class VLLMEncoder(transformer_base):
         def __init__(self, model_name: str, base_url: str, batch_size: int) -> None:
             super().__init__()
             self.client = OpenAI(base_url=base_url, api_key="vllm-token")
