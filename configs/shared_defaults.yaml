@@ -31,6 +31,28 @@ rerank:
   candidate_k: 100
   top_k: 100
 
+temporal:
+  enabled: false
+  rerank_top_k: 200
+  evaluation_time_field: snapshot
+  date_fields:
+    - updatedDate
+    - publishedDate
+    - createdDate
+  use_creation_date: true
+  use_update_date: true
+  use_age: true
+  use_recency_decay: true
+  use_query_intent: true
+  use_lexical_novelty: true
+  freshness_half_life_days: 90.0
+  age_half_life_days: 365.0
+  base_weight: 1.0
+  recency_weight: 0.25
+  update_weight: 0.2
+  foundation_weight: 0.15
+  novelty_weight: 0.1
+
 output:
   output_root: outputs
   reports_root: outputs/reports

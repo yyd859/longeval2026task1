@@ -1,0 +1,16 @@
+extends: ../shared_defaults.yaml
+run_name: custom_title_abstract_rm3
+pipeline: custom_title_abstract_rm3
+
+retrieval:
+  type: bm25
+  text_mode: title_abstract
+  top_k: 1000
+  model_name: null
+
+expansion:
+  enabled: true
+  type: rm3
+  fb_terms: 10
+  fb_docs: 3
+  fb_lambda: 0.6

@@ -1,0 +1,8 @@
+baseline_configs:
+  - configs/base/official_pyterrier.yaml
+  - configs/base/official_pyterrier_dense.yaml
+  - configs/base/custom_lexical_fulltext.yaml
+  - configs/base/custom_title_abstract_rm3.yaml
+  - configs/base/custom_title_abstract_rerank.yaml
+
+report_dir: outputs/reports/long_eval_2026_task1

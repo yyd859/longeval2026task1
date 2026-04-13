@@ -36,6 +36,29 @@ def read_trec_run(path: str | Path) -> dict[str, dict[str, float]]:
     return run
 
 
+def read_trec_results(path: str | Path) -> list[SearchResult]:
+    """Read a TREC run file into ordered SearchResult objects."""
+    results: list[SearchResult] = []
+    input_path = Path(path)
+    opener = gzip.open if input_path.suffix == ".gz" else Path.open
+    with opener(input_path, "rt", encoding="utf-8") as handle:
+        for line_number, line in enumerate(handle, start=1):
+            parts = line.strip().split()
+            if len(parts) != 6:
+                raise ValueError(f"Invalid TREC line in {path} at {line_number}: expected 6 columns, got {len(parts)}")
+            query_id, _, doc_id, rank, score, run_name = parts
+            results.append(
+                SearchResult(
+                    query_id=query_id,
+                    doc_id=doc_id,
+                    score=float(score),
+                    rank=int(rank),
+                    run_name=run_name,
+                )
+            )
+    return results
+
+
 def write_per_query_csv(rows: list[dict[str, str | float]], path: str | Path) -> None:
     """Write per-query metrics to CSV."""
     output_path = Path(path)

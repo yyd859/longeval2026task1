@@ -1,0 +1,9 @@
+extends: ../shared_defaults.yaml
+run_name: official_pyterrier_dense
+pipeline: official_pyterrier_dense
+
+retrieval:
+  top_k: 1000
+
+output:
+  run_filename: run.txt

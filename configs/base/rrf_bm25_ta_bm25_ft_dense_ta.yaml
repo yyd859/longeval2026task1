@@ -1,0 +1,9 @@
+extends: ../shared_defaults.yaml
+run_name: rrf_bm25_ta_bm25_ft_dense_ta
+pipeline: official_pyterrier
+
+retrieval:
+  type: bm25
+  text_mode: title_abstract
+  top_k: 1000
+  model_name: null

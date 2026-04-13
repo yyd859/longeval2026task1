@@ -1,0 +1,19 @@
+monthly_split:
+  date_field: updatedDate
+  minimum_qrels_per_query: 1
+
+splits:
+  - name: march_only
+    months:
+      - 3
+  - name: march_april
+    months:
+      - 3
+      - 4
+  - name: march_april_may
+    months:
+      - 3
+      - 4
+      - 5
+
+output_dir: outputs/reports/monthly_split

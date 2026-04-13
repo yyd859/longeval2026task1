@@ -1,0 +1,14 @@
+method,family,qrels_variant,run_path,ndcg_cut_10,ndcg_cut_1000,map,recall_100,recall_1000
+custom_title_abstract_rerank_temporal,temporal,dctr,outputs\custom_title_abstract_rerank_temporal\snapshot-1-train\run.txt,0.3518096877748593,0.4803787511133283,0.2977499204832748,0.714102527825722,0.7618894696524443
+custom_lexical_fulltext,base,dctr,outputs\custom_lexical_fulltext\snapshot-1-train\run.txt,0.33017325367375333,0.5077353847617554,0.28526696916176536,0.7393793873631186,0.9245427700696421
+custom_title_abstract_rerank,base,dctr,outputs\custom_title_abstract_rerank\snapshot-1-train\run.txt,0.3221555267026372,0.48206049747119795,0.2777275142389519,0.6952075123579022,0.8580615587340512
+rrf_bm25_ft_dense_ta,fusion,dctr,outputs\rrf_bm25_ft_dense_ta\snapshot-1-train\run.txt,0.31753078043128113,0.517334165741915,0.27488404402362604,0.7806318970413293,0.9667380959574122
+rrf_bm25_ta_bm25_ft_dense_ta,fusion,dctr,outputs\rrf_bm25_ta_bm25_ft_dense_ta\snapshot-1-train\run.txt,0.30281693590552455,0.5084050484442266,0.2572375613757943,0.787027390197183,0.9805612687278468
+official_pyterrier_dense_temporal,temporal,dctr,outputs\official_pyterrier_dense_temporal\snapshot-1-train\run.txt,0.2992559757840601,0.45807705741899274,0.24976309733981836,0.6405942764223821,0.8613187064152928
+official_pyterrier,base,dctr,outputs\official_pyterrier\snapshot-1-train\run.txt,0.29221559108544737,0.45639639909005075,0.2572624910389203,0.6836081280512302,0.8580615587340512
+official_pyterrier_dense,base,dctr,outputs\official_pyterrier_dense\snapshot-1-train\run.txt,0.282026334517185,0.44828436674215977,0.23777381921846763,0.6389806065954771,0.8613187064152928
+custom_title_abstract_rm3,base,dctr,outputs\custom_title_abstract_rm3\snapshot-1-train\run.txt,0.27812922888061964,0.45101961070166363,0.24017243056035148,0.6559464540124164,0.8701397990870102
+rrf_bm25_ta_dense_ta,fusion,dctr,outputs\rrf_bm25_ta_dense_ta\snapshot-1-train\run.txt,0.2664671000570277,0.4544371609355563,0.22033488716155103,0.6700816039623371,0.9022516236303534
+custom_title_abstract_rm3_temporal,temporal,dctr,outputs\custom_title_abstract_rm3_temporal\snapshot-1-train\run.txt,0.015410805851111813,0.18414155737498739,0.014420006318702161,0.043284455064881024,0.8701397990870099
+custom_lexical_fulltext_temporal,temporal,dctr,outputs\custom_lexical_fulltext_temporal\snapshot-1-train\run.txt,0.008790498408515724,0.19345401808876392,0.009088105163336895,0.021283177095309136,0.9245427700696421
+official_pyterrier_temporal,temporal,dctr,outputs\official_pyterrier_temporal\snapshot-1-train\run.txt,0.00534218214919156,0.1749354536381228,0.008283852891980721,0.02983068253022614,0.8580615587340512

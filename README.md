@@ -1,104 +1,189 @@
 # LongEval-Sci Baseline Platform
 
-This repository is for **CLEF LongEval 2026 Task 1: LongEval-Sci**. It is a research baseline platform for:
+This repository is our working platform for **CLEF LongEval 2026 Task 1: LongEval-Sci**.
 
-- reproducing the official lexical and dense baselines
-- building stronger custom baselines on top of them
-- comparing methods across evolving corpus snapshots
-- keeping the codebase ready for later Run 2 and Run 3 work
+The project is organized around a simple development protocol:
 
-Current shareable report:
+- use **`snapshot-1 train`** as the main supervised development split
+- treat **later snapshots** as temporal evaluation conditions
+- keep **Run 1** focused on non-temporal improvements
+- add **Run 2** temporal features as clean overlays on top of existing runs
 
-- [train summary](c:/Users/Will/Documents/longEval2026task1/outputs/reports/train_snapshot1/summary.md)
-- [model overview](c:/Users/Will/Documents/longEval2026task1/MODEL_OVERVIEW.md)
+Official references:
 
-## Benchmark Overview
+- LongEval task page: https://clef-longeval.github.io/tasks/
+- Official baseline code: https://github.com/clef-longeval/longeval-code/tree/main/clef26/scientific-retrieval
 
-LongEval-Sci is a **longitudinal scientific retrieval** task over three corpus snapshots:
+Useful project notes:
 
-- `snapshot-1`
-- `snapshot-2`
-- `snapshot-3`
+- [MODEL_OVERVIEW.md](c:/Users/Will/Documents/longEval2026task1/MODEL_OVERVIEW.md)
+- [TEMPORAL_FEATURES_DESIGN.md](c:/Users/Will/Documents/longEval2026task1/TEMPORAL_FEATURES_DESIGN.md)
+- [TEMPORAL_METRICS.md](c:/Users/Will/Documents/longEval2026task1/TEMPORAL_METRICS.md)
+- [MIGRATION.md](c:/Users/Will/Documents/longEval2026task1/MIGRATION.md)
 
-The official task also provides a **snapshot-1 train split** with train queries and qrels. That train split is what we currently use for local metric-based comparison.
+## Current Model Set
 
-Two qrel variants are available:
+We currently track **13 models** in three families.
 
-- `raw`: clicked documents are marked relevant
-- `dctr`: pseudo relevance labels derived from Document Click Through Rate
+Base models:
 
-In the current local train files:
+- `official_pyterrier`
+- `official_pyterrier_dense`
+- `custom_lexical_fulltext`
+- `custom_title_abstract_rm3`
+- `custom_title_abstract_rerank`
 
-- `raw` is binary positive-only qrels
-- `dctr` contains graded labels `0`, `1`, and `2`
+Temporal sibling models:
 
-That matters because:
+- `official_pyterrier_temporal`
+- `official_pyterrier_dense_temporal`
+- `custom_lexical_fulltext_temporal`
+- `custom_title_abstract_rm3_temporal`
+- `custom_title_abstract_rerank_temporal`
 
-- `nDCG` uses graded relevance directly
-- `MAP` and `Recall` treat relevance values `> 0` as relevant
+Fusion models:
 
-## Baselines
+- `rrf_bm25_ta_dense_ta`
+- `rrf_bm25_ft_dense_ta`
+- `rrf_bm25_ta_bm25_ft_dense_ta`
 
-The current baseline set is:
+Design-level descriptions live in [MODEL_OVERVIEW.md](c:/Users/Will/Documents/longEval2026task1/MODEL_OVERVIEW.md).
 
-Official-anchor baselines:
+## Current Findings
 
-1. `official_pyterrier`
-2. `official_pyterrier_dense`
+Main shareable reports:
 
-Custom baselines:
+- [whole-train summary](c:/Users/Will/Documents/longEval2026task1/outputs/reports/all_models_train_snapshot1/summary.md)
+- [monthly growth summary](c:/Users/Will/Documents/longEval2026task1/outputs/reports/monthly_split/_summary/monthly_comparison.md)
+- [temporal change summary](c:/Users/Will/Documents/longEval2026task1/outputs/reports/monthly_split/_summary/temporal_change/temporal_change.md)
 
-3. `custom_lexical_fulltext`
-4. `custom_dense_rerank`
-5. `custom_hybrid_union_rerank`
+Current picture:
 
-Mapping to the official LongEval references:
+- strongest base model on `snapshot-1 train`: `custom_lexical_fulltext`
+- strongest fusion model so far: `rrf_bm25_ft_dense_ta`
+- strongest temporal sibling so far: `custom_title_abstract_rerank_temporal`
+- several temporal siblings are currently too aggressive and need tuning:
+  - `official_pyterrier_temporal`
+  - `custom_lexical_fulltext_temporal`
+  - `custom_title_abstract_rm3_temporal`
 
-- `official_pyterrier` = the official **BM25** baseline
-- `official_pyterrier_dense` = the official **Qwen3-Embedding-4B** dense baseline
+Official reference note:
 
-The lexical baseline is reproduced locally. The official dense baseline still requires the local embedding service expected by the upstream baseline script.
+- organizer-provided BM25 and Qwen train runs are kept under `outputs/baseline_reference/`
+- the report builders treat those as fixed anchors, so they do not need to be rerun just to refresh summaries
 
-For a design-focused explanation of the five models, see [MODEL_OVERVIEW.md](c:/Users/Will/Documents/longEval2026task1/MODEL_OVERVIEW.md).
-
-Short version:
-
-- `official_pyterrier`: official BM25 lexical anchor
-- `official_pyterrier_dense`: official dense Qwen anchor
-- `custom_lexical_fulltext`: stronger sparse baseline using full text
-- `custom_dense_rerank`: dense retrieval followed by reranking
-- `custom_hybrid_union_rerank`: lexical+dense candidate union followed by reranking
-
-## Data Layout
-
-The active local cache layout is:
-
-```text
-.cache/ir_datasets/longeval-sci-2026/
-  snapshot1/
-  snapshot2/
-  snapshot3/
-  longeval_adhoc-queries-snapshot-test.tsv
-  task1_longeval_adhoc-queries-snapshot-train.tsv
-  task1_longeval_adhoc-qrels-snapshot-train-dctr.txt
-  task1_longeval_adhoc-qrels-snapshot-train-raw.txt
-```
-
-The code now supports:
-
-- abstract-based snapshot loading
-- fulltext-aware local snapshot loading
-- train-split evaluation on `snapshot-1`
+## Data and Evaluation Protocol
 
 Important split distinction:
 
-- `snapshot-1-train` is the local development split with train queries and qrels
-- `snapshot-1`, `snapshot-2`, and `snapshot-3` are the official test snapshots
-- test snapshots currently produce ranking files, but local metrics stay empty until test qrels are released
+- `snapshot-1 train`
+  - full `snapshot-1` document collection
+  - train queries
+  - train qrels
+- `snapshot-1`, `snapshot-2`, `snapshot-3`
+  - official snapshot runs
+  - later snapshots are temporal evaluation conditions
+
+So local model development happens on the full `snapshot-1` corpus with a train-only query/qrel split.
+
+## Canonical Indices
+
+We keep the first-stage index inventory deliberately small.
+
+Canonical text views:
+
+1. `title_abstract`
+2. `fulltext`
+
+Canonical index locations:
+
+```text
+indexes/
+  snapshot-1/
+    title_abstract/
+      lexical_pyterrier/
+      dense/
+        intfloat_e5-base-v2/
+      official_dense/
+        Qwen_Qwen3-Embedding-4B/
+    fulltext/
+      lexical_pyterrier/
+```
+
+Rules:
+
+- lexical and dense remain separate backends even when they use similar text
+- RM3, reranking, temporal overlay, and RRF fusion should reuse existing first-stage artifacts
+- we do not rebuild indices just to apply fusion or temporal reranking
+
+## Evaluation Layers
+
+We use three complementary evaluation layers.
+
+### 1. Whole-Train Evaluation
+
+Purpose:
+
+- absolute effectiveness on `snapshot-1 train`
+
+Main outputs:
+
+- [summary.md](c:/Users/Will/Documents/longEval2026task1/outputs/reports/all_models_train_snapshot1/summary.md)
+- [comparison_all.csv](c:/Users/Will/Documents/longEval2026task1/outputs/reports/all_models_train_snapshot1/comparison_all.csv)
+
+### 2. Monthly Split Evaluation
+
+Purpose:
+
+- robustness as the simulated corpus grows from March to May
+
+Current cumulative splits:
+
+- `march_only`
+- `march_april`
+- `march_april_may`
+
+Main outputs:
+
+- [monthly_comparison.md](c:/Users/Will/Documents/longEval2026task1/outputs/reports/monthly_split/_summary/monthly_comparison.md)
+- [monthly_comparison.csv](c:/Users/Will/Documents/longEval2026task1/outputs/reports/monthly_split/_summary/monthly_comparison.csv)
+
+### 3. Temporal Change Evaluation
+
+Purpose:
+
+- RI / DRI / ER / ARP / MARP relative to the BM25 pivot
+
+Current pivot:
+
+- `official_pyterrier_dctr`
+
+Main outputs:
+
+- [temporal_change.md](c:/Users/Will/Documents/longEval2026task1/outputs/reports/monthly_split/_summary/temporal_change/temporal_change.md)
+- [temporal_change.csv](c:/Users/Will/Documents/longEval2026task1/outputs/reports/monthly_split/_summary/temporal_change/temporal_change.csv)
+
+## Canonical Scripts
+
+Main scripts we actively use:
+
+- `scripts/check_official_env.py`
+- `scripts/build_indices.py`
+- `scripts/run_baseline.py`
+- `scripts/run_all_baselines.py`
+- `scripts/run_rrf_fusion.py`
+- `scripts/run_temporal_overlay.py`
+- `scripts/run_snapshot1_monthly_eval.py`
+- `scripts/build_all_models_train_report.py`
+- `scripts/build_monthly_split_summary.py`
+- `scripts/build_temporal_change_report.py`
+- `scripts/pipeline.ipynb`
+
+Optional analysis script:
+
+- `scripts/run_rerank_sweep_train_snapshot1.py`
 
 ## Environment
-
-Create the local environment:
 
 ```powershell
 python -m venv .venv
@@ -107,179 +192,114 @@ python -m venv .venv
 .\.venv\Scripts\python.exe -m pip install -r requirements.txt
 ```
 
-For PyTerrier, make sure Java 17 is active:
+For PyTerrier:
 
 ```powershell
 $env:JAVA_HOME="C:\Program Files\Java\jdk-17"
 $env:Path="$env:JAVA_HOME\bin;$env:Path"
-java -version
 ```
 
-Preflight check:
+Preflight:
 
 ```powershell
 python scripts/check_official_env.py
 ```
 
-## Canonical Commands
+## Main Commands
 
-Official lexical baseline over the three test snapshots:
+Build needed indices for a config:
 
 ```powershell
-python scripts/run_official_pyterrier.py
+python scripts/build_indices.py --config configs/custom_lexical_fulltext.yaml
 ```
 
-Official dense baseline over the three test snapshots:
+Run one model on `snapshot-1 train`:
 
 ```powershell
-python scripts/run_official_pyterrier_dense.py
+python scripts/run_baseline.py --config configs/custom_lexical_fulltext.yaml --train-snapshot1 --qrels-variant dctr
+python scripts/run_baseline.py --config configs/custom_title_abstract_rm3.yaml --train-snapshot1 --qrels-variant dctr
+python scripts/run_baseline.py --config configs/custom_title_abstract_rerank.yaml --train-snapshot1 --qrels-variant dctr
 ```
 
-Custom baselines:
+Apply temporal overlays without rebuilding retrieval:
 
 ```powershell
-python scripts/run_custom_lexical_fulltext.py
-python scripts/run_custom_dense_rerank.py
-python scripts/run_custom_hybrid_union_rerank.py
+python scripts/run_baseline.py --config configs/official_pyterrier_temporal.yaml --train-snapshot1 --qrels-variant dctr
+python scripts/run_baseline.py --config configs/official_pyterrier_dense_temporal.yaml --train-snapshot1 --qrels-variant dctr
+python scripts/run_baseline.py --config configs/custom_lexical_fulltext_temporal.yaml --train-snapshot1 --qrels-variant dctr
+python scripts/run_baseline.py --config configs/custom_title_abstract_rm3_temporal.yaml --train-snapshot1 --qrels-variant dctr
+python scripts/run_baseline.py --config configs/custom_title_abstract_rerank_temporal.yaml --train-snapshot1 --qrels-variant dctr
 ```
 
-All five:
+Build RRF fusion runs from existing run files:
 
 ```powershell
-python scripts/run_all_baselines.py
+python scripts/run_rrf_fusion.py --run-name rrf_bm25_ta_dense_ta --input-run outputs/official_pyterrier/snapshot-1-train/run.txt --input-run outputs/official_pyterrier_dense/snapshot-1-train/run.txt --train-snapshot1 --qrels-variant dctr
+python scripts/run_rrf_fusion.py --run-name rrf_bm25_ft_dense_ta --input-run outputs/custom_lexical_fulltext/snapshot-1-train/run.txt --input-run outputs/official_pyterrier_dense/snapshot-1-train/run.txt --train-snapshot1 --qrels-variant dctr
+python scripts/run_rrf_fusion.py --run-name rrf_bm25_ta_bm25_ft_dense_ta --input-run outputs/official_pyterrier/snapshot-1-train/run.txt --input-run outputs/custom_lexical_fulltext/snapshot-1-train/run.txt --input-run outputs/official_pyterrier_dense/snapshot-1-train/run.txt --train-snapshot1 --qrels-variant dctr
+```
+
+Rebuild the three main reports:
+
+```powershell
+python scripts/build_all_models_train_report.py
+python scripts/build_monthly_split_summary.py
+python scripts/build_temporal_change_report.py
+```
+
+Run monthly split evaluation on existing runs:
+
+```powershell
+python scripts/run_snapshot1_monthly_eval.py --config configs/official_pyterrier.yaml --plan configs/plans/snapshot1_monthly_eval.yaml --qrels-variant dctr --reuse-existing-run
+python scripts/run_snapshot1_monthly_eval.py --config configs/official_pyterrier_dense.yaml --plan configs/plans/snapshot1_monthly_eval.yaml --qrels-variant dctr --reuse-existing-run
+python scripts/run_snapshot1_monthly_eval.py --config configs/custom_lexical_fulltext.yaml --plan configs/plans/snapshot1_monthly_eval.yaml --qrels-variant dctr --reuse-existing-run
+python scripts/run_snapshot1_monthly_eval.py --config configs/custom_title_abstract_rm3.yaml --plan configs/plans/snapshot1_monthly_eval.yaml --qrels-variant dctr --reuse-existing-run
+python scripts/run_snapshot1_monthly_eval.py --config configs/custom_title_abstract_rerank.yaml --plan configs/plans/snapshot1_monthly_eval.yaml --qrels-variant dctr --reuse-existing-run
+```
+
+Then rebuild the monthly and temporal-change summaries:
+
+```powershell
+python scripts/build_monthly_split_summary.py
+python scripts/build_temporal_change_report.py
 ```
 
 ## Output Layout
 
-Outputs are now model-centric:
+Outputs are model-centric:
 
 ```text
 outputs/
-  official_pyterrier/
+  <model_name>/
     snapshot-1/
-      run.txt
-      metrics.json
-      per_query_metrics.csv
     snapshot-1-train/
-      run.txt
-      metrics.json
-      per_query_metrics.csv
     snapshot-2/
-      ...
     snapshot-3/
-      ...
-  custom_lexical_fulltext/
-    snapshot-1-train/
-      ...
-  custom_dense_rerank/
-    snapshot-1-train/
-      ...
-  custom_hybrid_union_rerank/
-    snapshot-1-train/
-      ...
-  baseline_reference/
-    ...
   reports/
-    train_snapshot1/
-      summary.md
-      comparison_dctr.csv
-      comparison_raw.csv
-      comparison_all.csv
+    all_models_train_snapshot1/
+    monthly_split/
+      <model>_<qrels_variant>/
+      _summary/
 ```
 
-For test snapshots without released qrels:
+For snapshots without released qrels:
 
-- `run.txt` is the important artifact
-- `metrics.json` is written with `status = skipped`
+- `run.txt` is the main artifact
+- `metrics.json` records skipped evaluation
 
-For train evaluation:
+For train and month-based evaluation:
 
-- metrics are written normally
-- train outputs now live under the same model directories, for example:
-  - `outputs/official_pyterrier/snapshot-1-train/`
-  - `outputs/custom_lexical_fulltext/snapshot-1-train/`
+- metrics are saved normally
+- reports live under `outputs/reports/`
 
-## Current Train Findings
+## Notebook
 
-Train comparison report:
+For a quick teammate-oriented walkthrough, use:
 
-- [summary.md](c:/Users/Will/Documents/longEval2026task1/outputs/reports/train_snapshot1/summary.md)
-- [comparison_dctr.csv](c:/Users/Will/Documents/longEval2026task1/outputs/reports/train_snapshot1/comparison_dctr.csv)
-- [comparison_raw.csv](c:/Users/Will/Documents/longEval2026task1/outputs/reports/train_snapshot1/comparison_raw.csv)
+- [scripts/pipeline.ipynb](c:/Users/Will/Documents/longEval2026task1/scripts/pipeline.ipynb)
 
-Snapshot-1 train, DCTR qrels:
+It is designed as a catch-up notebook for:
 
-| Method | nDCG@10 | nDCG@1000 | MAP | Recall@100 | Recall@1000 |
-| --- | ---: | ---: | ---: | ---: | ---: |
-| `official_pyterrier` | 0.2922 | 0.4564 | 0.2573 | 0.6836 | 0.8581 |
-| `reference_qwen3` | 0.2820 | 0.4483 | 0.2378 | 0.6390 | 0.8613 |
-| `custom_lexical_fulltext` | 0.3302 | 0.5077 | 0.2853 | 0.7394 | 0.9245 |
-| `custom_dense_rerank` | 0.1284 | 0.1686 | 0.0853 | 0.2925 | 0.3106 |
-| `custom_hybrid_union_rerank` | 0.1371 | 0.3580 | 0.1245 | 0.5316 | 0.9388 |
-
-Takeaway:
-
-- the custom fulltext lexical run is currently the strongest model on the train split
-- the official BM25 run matches the downloaded official BM25 reference
-- the current dense and hybrid custom runs need more tuning
-
-## Qrels Interpretation
-
-We currently report train metrics under both `dctr` and `raw` qrels.
-
-How to read them:
-
-- `raw` asks a simpler question: did we retrieve clicked documents?
-- `dctr` asks a more nuanced question: did we rank stronger pseudo-relevant documents above weaker ones?
-
-That means:
-
-- `nDCG` is usually the most informative metric for `dctr`
-- `MAP` and `Recall` are still useful, but they collapse graded labels into relevant vs not relevant
-
-If you are discussing the current baseline quality in a paper draft or lab note, prefer the `dctr` table first and use the `raw` table as a robustness check.
-
-## What Has Been Done
-
-Recent work completed in this repo:
-
-- aligned the official lexical path with the upstream PyTerrier baseline
-- mapped the official dense baseline to the upstream Qwen design
-- added local snapshot-cache loading for abstract and fulltext corpora
-- added train-split evaluation support for `snapshot-1`
-- added parsing for the provided train qrels text files
-- generated a comparable train report across official BM25, official Qwen reference, and the three custom baselines
-- cleaned output naming so future official runs write plain `run.txt`
-- reorganized outputs so train results sit under each model directory
-- kept shareable reports under `outputs/reports/train_snapshot1/`
-
-## Notes on the Official Dense Baseline
-
-The upstream official dense baseline expects:
-
-- `Qwen/Qwen3-Embedding-4B`
-- an OpenAI-compatible local service at `http://localhost:6543/v1`
-
-So `official_pyterrier_dense` will not run end to end until that service is available.
-
-## Testing
-
-Run the local tests:
-
-```powershell
-.\.venv\Scripts\python.exe -m unittest discover tests
-```
-
-## Roadmap
-
-Current scope:
-
-- strong Run 1 baselines
-- official baseline alignment
-- snapshot-aware outputs
-- train/test split-aware evaluation
-
-Later:
-
-- Run 2 time-aware retrieval
-- Run 3 trigger/update policies
+- rebuilding the three main reports
+- reviewing current findings
+- optionally rerunning the monthly and temporal summary steps

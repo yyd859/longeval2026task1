@@ -7,7 +7,7 @@ import json
 from pathlib import Path
 
 from longeval_sci.baselines.runner import BaselineRunResult
-from longeval_sci.config import DEFAULT_METRICS, DEFAULT_SNAPSHOTS, baseline_reports_dir
+from longeval_sci.config import DEFAULT_METRICS, DEFAULT_SNAPSHOTS
 
 
 def _pct_delta(new: float, old: float) -> float | None:

@@ -103,6 +103,7 @@ class DenseRetriever:
         self.documents: dict[str, Document] = {}
         self.embeddings_path: Path | None = None
         self._encoder = self._load_encoder()
+        self.embedding_dimension: int | None = None
 
     def _load_encoder(self):
         try:
@@ -113,13 +114,22 @@ class DenseRetriever:
             return HashingEmbedder()
 
     def _encode(self, texts: list[str]) -> np.ndarray:
-        return self._encoder.encode(
+        vectors = self._encoder.encode(
             texts,
             batch_size=self.batch_size,
             normalize_embeddings=self.normalize_embeddings,
             convert_to_numpy=True,
             show_progress_bar=False,
         )
+        if self.embedding_dimension is None:
+            self.embedding_dimension = int(vectors.shape[1])
+        return vectors
+
+    def get_embedding_dimension(self) -> int:
+        if self.embedding_dimension is None:
+            self._encode(["dimension probe"])
+        assert self.embedding_dimension is not None
+        return self.embedding_dimension
 
     def _document_texts(self, documents: list[Document], start: int, end: int) -> list[str]:
         return [self.document_prefix + build_document_text(document, self.text_mode) for document in documents[start:end]]
@@ -237,6 +247,7 @@ class DenseRetriever:
             "query_prefix": self.query_prefix,
             "document_prefix": self.document_prefix,
             "search_chunk_size": self.search_chunk_size,
+            "embedding_dimension": self.embedding_dimension,
         }
         with (output_dir / "metadata.json").open("w", encoding="utf-8") as handle:
             json.dump(metadata, handle)
@@ -268,16 +279,21 @@ class DenseRetriever:
         self.query_prefix = metadata.get("query_prefix", self.query_prefix)
         self.document_prefix = metadata.get("document_prefix", self.document_prefix)
         self.search_chunk_size = metadata.get("search_chunk_size", self.search_chunk_size)
+        self.embedding_dimension = metadata.get("embedding_dimension", self.embedding_dimension)
 
         faiss_path = input_dir / "index.faiss"
         if faiss_path.exists():
             import faiss
 
             self.index = faiss.read_index(str(faiss_path))
+            if self.embedding_dimension is None and hasattr(self.index, "d"):
+                self.embedding_dimension = int(self.index.d)
             return
 
         numpy_path = input_dir / "index.npy"
         if not numpy_path.exists():
             raise FileNotFoundError(f"No dense index found under {input_dir}")
         self.embeddings_path = numpy_path
+        if self.embedding_dimension is None:
+            self.embedding_dimension = int(np.load(numpy_path, mmap_mode="r").shape[1])
         self.index = DiskBackedVectorIndex(numpy_path, self.search_chunk_size)

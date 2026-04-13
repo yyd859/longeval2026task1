@@ -12,8 +12,10 @@ from typing import Any, cast
 from longeval_sci.config import (
     ExperimentConfig,
     baseline_output_dir,
-    snapshot_index_dir,
+    canonical_dense_index_dir,
+    canonical_lexical_index_dir,
     snapshot_metrics_path,
+    snapshot_output_name,
     snapshot_per_query_metrics_path,
     snapshot_run_path,
 )
@@ -22,15 +24,103 @@ from longeval_sci.io.dataset import DatasetBundle, Document, SearchResult, iter_
 from longeval_sci.io.trec import write_trec_run
 from longeval_sci.preprocess.fields import build_document_text
 from longeval_sci.rerank.cross_encoder import CrossEncoderReranker
+from longeval_sci.temporal.rerank import temporal_rerank_results
 from longeval_sci.retrieval.bm25 import BM25Retriever
 from longeval_sci.retrieval.dense import DenseRetriever
-from longeval_sci.retrieval.hybrid import union_results
+from longeval_sci.retrieval.hybrid import reciprocal_rank_fusion, union_results
 from longeval_sci.utils.logging import configure_logging
-from longeval_sci.utils.paths import configure_pyterrier_home, ensure_dir, ensure_parent
+from longeval_sci.utils.paths import configure_java_home, configure_pyterrier_home, ensure_dir, ensure_parent
 from longeval_sci.utils.seed import set_seed
 
 
 LOGGER = logging.getLogger(__name__)
+
+
+def _root_index_dir(config: ExperimentConfig) -> Path:
+    return Path(config.retrieval.index_root or "indexes")
+
+
+def _existing_dense_index_dir(index_dir: Path) -> bool:
+    return (index_dir / "metadata.json").exists() and ((index_dir / "index.faiss").exists() or (index_dir / "index.npy").exists())
+
+
+def _existing_pyterrier_index_dir(index_dir: Path) -> bool:
+    return (index_dir / "data.properties").exists()
+
+
+def _legacy_lexical_index_candidates(config: ExperimentConfig, snapshot_id: str, text_mode: str) -> list[Path]:
+    root = _root_index_dir(config)
+    if text_mode == "title_abstract":
+        return [
+            root / "official_pyterrier" / snapshot_id / "pyterrier_index",
+            root / "official_pyterrier_train_eval" / snapshot_id / "pyterrier_index",
+        ]
+    if text_mode == "full_text":
+        return [
+            root / "custom_lexical_fulltext" / snapshot_id / "pyterrier_index_full_text",
+            root / "custom_lexical_fulltext_rm3" / snapshot_id / "pyterrier_index_full_text",
+            root / "custom_hybrid_union_rerank" / snapshot_id / "pyterrier_index_full_text",
+            root / "custom_hybrid_rrf_rerank" / snapshot_id / "pyterrier_index_full_text",
+        ]
+    return []
+
+
+def _legacy_dense_index_candidates(
+    config: ExperimentConfig,
+    snapshot_id: str,
+    text_mode: str,
+    backend_label: str,
+) -> list[Path]:
+    root = _root_index_dir(config)
+    if text_mode != "title_abstract":
+        return []
+    if backend_label == "official_dense":
+        return [
+            root / "official_pyterrier_dense" / snapshot_id / "dense_title_abstract",
+        ]
+    return [
+        root / "custom_dense_rerank" / snapshot_id / "dense_title_abstract",
+        root / "custom_hybrid_union_rerank" / snapshot_id / "dense_title_abstract",
+        root / "custom_hybrid_rrf_rerank" / snapshot_id / "dense_title_abstract",
+    ]
+
+
+def _resolve_pyterrier_index_dir(
+    config: ExperimentConfig,
+    snapshot_id: str,
+    text_mode: str,
+    create: bool = False,
+) -> Path:
+    canonical = canonical_lexical_index_dir(config, snapshot_id, text_mode)
+    if canonical is not None and _existing_pyterrier_index_dir(canonical):
+        return canonical
+    for candidate in _legacy_lexical_index_candidates(config, snapshot_id, text_mode):
+        if _existing_pyterrier_index_dir(candidate):
+            LOGGER.info("Reusing existing lexical index at %s", candidate)
+            return candidate
+    if canonical is None:
+        raise ValueError("PyTerrier lexical runs require retrieval.index_root to be configured")
+    return ensure_dir(canonical) if create else canonical
+
+
+def _resolve_dense_index_dir(
+    config: ExperimentConfig,
+    snapshot_id: str,
+    text_mode: str,
+    model_name: str | None,
+    backend_label: str = "dense",
+    create: bool = False,
+) -> Path:
+    canonical = canonical_dense_index_dir(config, snapshot_id, text_mode, model_name, backend_label=backend_label)
+    if canonical is not None and _existing_dense_index_dir(canonical):
+        return canonical
+    for candidate in _legacy_dense_index_candidates(config, snapshot_id, text_mode, backend_label):
+        if _existing_dense_index_dir(candidate):
+            LOGGER.info("Reusing existing dense index at %s", candidate)
+            return candidate
+    if canonical is None:
+        raise ValueError("Dense runs require retrieval.index_root to be configured")
+    return ensure_dir(canonical) if create else canonical
 
 
 @dataclass(slots=True)
@@ -74,12 +164,39 @@ def _write_metrics_status(
         handle.write("query_id,status,reason\n")
 
 
+def _progress_path(config: ExperimentConfig, snapshot_id: str) -> Path:
+    return baseline_output_dir(config) / snapshot_output_name(config.dataset, snapshot_id) / "progress.json"
+
+
+def _write_progress(
+    config: ExperimentConfig,
+    snapshot_id: str,
+    stage: str,
+    completed_queries: int,
+    total_queries: int,
+    note: str,
+) -> None:
+    progress_path = _progress_path(config, snapshot_id)
+    ensure_parent(progress_path)
+    payload = {
+        "run_name": config.run_name,
+        "snapshot_id": snapshot_id,
+        "stage": stage,
+        "completed_queries": completed_queries,
+        "total_queries": total_queries,
+        "note": note,
+    }
+    with progress_path.open("w", encoding="utf-8") as handle:
+        json.dump(payload, handle, indent=2, sort_keys=True)
+
+
 def _ensure_pyterrier_started(memory_limit_mb: int | None = 12288) -> Any:
     try:
         import pyterrier as pt  # type: ignore
     except ImportError as exc:
         raise RuntimeError("PyTerrier is not installed in this environment.") from exc
 
+    configure_java_home()
     configure_pyterrier_home()
     try:
         pt.java.set_memory_limit(memory_limit_mb)
@@ -126,9 +243,9 @@ def _results_from_pairs(query_id: str, pairs: list[tuple[str, float]], run_name:
 def _build_bm25(config: ExperimentConfig, documents: list[Document], snapshot_id: str, text_mode: str) -> BM25Retriever:
     retriever = BM25Retriever()
     retriever.build_index(documents, text_mode)
-    index_dir = snapshot_index_dir(config, snapshot_id)
+    index_dir = canonical_lexical_index_dir(config, snapshot_id, text_mode)
     if index_dir is not None:
-        retriever.save(str(index_dir / f"bm25_{text_mode}"))
+        retriever.save(str(index_dir / "python_bm25"))
     return retriever
 
 
@@ -144,19 +261,52 @@ def _build_dense(config: ExperimentConfig, documents: list[Document], snapshot_i
         encode_chunk_size=config.retrieval.encode_chunk_size,
         search_chunk_size=config.retrieval.search_chunk_size,
     )
-    index_dir = snapshot_index_dir(config, snapshot_id)
-    if index_dir is None:
-        embeddings = retriever.encode_documents(documents)
-        retriever.build_index(embeddings, [document.doc_id for document in documents])
-        return retriever
+    dense_index_dir = _resolve_dense_index_dir(
+        config,
+        snapshot_id,
+        text_mode,
+        config.retrieval.model_name,
+        backend_label="dense",
+        create=True,
+    )
 
-    dense_index_dir = index_dir / f"dense_{text_mode}"
     metadata_path = dense_index_dir / "metadata.json"
     index_path = dense_index_dir / "index.faiss"
     numpy_index_path = dense_index_dir / "index.npy"
     if metadata_path.exists() and (index_path.exists() or numpy_index_path.exists()):
         LOGGER.info("Loading existing dense index from %s", dense_index_dir)
         retriever.load(dense_index_dir)
+        actual_dim = retriever.embedding_dimension
+        retriever.embedding_dimension = None
+        expected_dim = retriever.get_embedding_dimension()
+        if actual_dim != expected_dim:
+            LOGGER.warning(
+                "Dense index at %s is incompatible with the current encoder (index dim=%s, encoder dim=%s); rebuilding",
+                dense_index_dir,
+                actual_dim,
+                expected_dim,
+            )
+            canonical_dir = canonical_dense_index_dir(
+                config,
+                snapshot_id,
+                text_mode,
+                config.retrieval.model_name,
+                backend_label="dense",
+            )
+            rebuild_dir = ensure_dir(canonical_dir) if canonical_dir is not None else dense_index_dir
+            fresh_retriever = DenseRetriever(
+                model_name=config.retrieval.model_name,
+                text_mode=text_mode,
+                normalize_embeddings=config.retrieval.normalize_embeddings,
+                query_prefix=config.retrieval.query_prefix,
+                document_prefix=config.retrieval.document_prefix,
+                batch_size=config.runtime.batch_size,
+                device=config.runtime.device,
+                encode_chunk_size=config.retrieval.encode_chunk_size,
+                search_chunk_size=config.retrieval.search_chunk_size,
+            )
+            fresh_retriever.build_index_from_documents(documents, rebuild_dir)
+            return fresh_retriever
         return retriever
 
     retriever.build_index_from_documents(documents, dense_index_dir)
@@ -180,10 +330,7 @@ def _run_official_pyterrier(bundle: DatasetBundle, config: ExperimentConfig, sna
 
     pt = _ensure_pyterrier_started(config.runtime.pyterrier_memory_mb)
 
-    index_dir = snapshot_index_dir(config, snapshot_id)
-    if index_dir is None:
-        raise ValueError("official_pyterrier requires retrieval.index_root to be configured")
-    pt_index_dir = ensure_dir(index_dir / "pyterrier_index")
+    pt_index_dir = _resolve_pyterrier_index_dir(config, snapshot_id, config.retrieval.text_mode, create=True)
 
     if not (pt_index_dir / "data.properties").exists():
         indexer = pt.IterDictIndexer(
@@ -222,10 +369,7 @@ def _run_snapshot_cache_pyterrier_lexical(
         raise RuntimeError("PyTerrier lexical streaming requires pandas and pyterrier to be installed") from exc
 
     pt = _ensure_pyterrier_started(config.runtime.pyterrier_memory_mb)
-    index_dir = snapshot_index_dir(config, snapshot_id)
-    if index_dir is None:
-        raise ValueError("PyTerrier lexical streaming requires retrieval.index_root to be configured")
-    pt_index_dir = ensure_dir(index_dir / f"pyterrier_index_{text_mode}")
+    pt_index_dir = _resolve_pyterrier_index_dir(config, snapshot_id, text_mode, create=True)
 
     if not (pt_index_dir / "data.properties").exists():
         indexer = pt.IterDictIndexer(
@@ -240,6 +384,46 @@ def _run_snapshot_cache_pyterrier_lexical(
     tokeniser = pt.java.autoclass("org.terrier.indexing.tokenisation.Tokeniser").getTokeniser()
     topics["query"] = topics["query"].apply(lambda value: " ".join(tokeniser.getTokens(value)))
     run_frame = pt.terrier.Retriever(index, wmodel="BM25")(topics)
+    return _pyterrier_to_results(run_frame, run_name, top_k)
+
+
+def _run_snapshot_cache_pyterrier_rm3(
+    bundle: DatasetBundle,
+    config: ExperimentConfig,
+    snapshot_id: str,
+    text_mode: str,
+    run_name: str,
+    top_k: int,
+) -> list[SearchResult]:
+    try:
+        import pandas as pd
+    except ImportError as exc:
+        raise RuntimeError("PyTerrier RM3 requires pandas and pyterrier to be installed") from exc
+
+    pt = _ensure_pyterrier_started(config.runtime.pyterrier_memory_mb)
+    pt_index_dir = _resolve_pyterrier_index_dir(config, snapshot_id, text_mode, create=True)
+
+    if not (pt_index_dir / "data.properties").exists():
+        indexer = pt.IterDictIndexer(
+            str(pt_index_dir.resolve()),
+            overwrite=True,
+            meta={"docno": 100, "text": 20480},
+        )
+        indexer.index(iter_snapshot_cache_text_records(config.dataset, snapshot_id, text_mode))
+
+    index = pt.IndexFactory.of(str(pt_index_dir.resolve()))
+    topics = pd.DataFrame([{"qid": query.query_id, "query": query.text} for query in bundle.queries])
+    tokeniser = pt.java.autoclass("org.terrier.indexing.tokenisation.Tokeniser").getTokeniser()
+    topics["query"] = topics["query"].apply(lambda value: " ".join(tokeniser.getTokens(value)))
+    bm25_first = pt.terrier.Retriever(index, wmodel="BM25")
+    bm25_second = pt.terrier.Retriever(index, wmodel="BM25")
+    rm3 = pt.rewrite.RM3(
+        index,
+        fb_terms=config.expansion.fb_terms,
+        fb_docs=config.expansion.fb_docs,
+        fb_lambda=config.expansion.fb_lambda,
+    )
+    run_frame = (bm25_first >> rm3 >> bm25_second)(topics)
     return _pyterrier_to_results(run_frame, run_name, top_k)
 
 
@@ -282,10 +466,14 @@ def _run_official_pyterrier_dense(bundle: DatasetBundle, config: ExperimentConfi
             input_df[output_column] = list(np.vstack(embeddings))
             return input_df
 
-    index_dir = snapshot_index_dir(config, snapshot_id)
-    if index_dir is None:
-        raise ValueError("official_pyterrier_dense requires retrieval.index_root to be configured")
-    pt_index_dir = ensure_dir(index_dir / "pyterrier_dense_index")
+    pt_index_dir = _resolve_dense_index_dir(
+        config,
+        snapshot_id,
+        config.retrieval.text_mode,
+        config.retrieval.model_name,
+        backend_label="official_dense",
+        create=True,
+    )
     flex_path = pt_index_dir / "my_index.flex"
     encoder = VLLMEncoder(
         model_name=config.retrieval.model_name or "Qwen/Qwen3-Embedding-4B",
@@ -339,6 +527,88 @@ def _run_dense_rerank(bundle: DatasetBundle, config: ExperimentConfig, snapshot_
     return results
 
 
+def _run_lexical_rerank(bundle: DatasetBundle, config: ExperimentConfig, snapshot_id: str, text_mode: str) -> list[SearchResult]:
+    if config.dataset.backend == "local_snapshot_cache":
+        lexical_results = _run_snapshot_cache_pyterrier_lexical(
+            bundle,
+            config,
+            snapshot_id,
+            text_mode,
+            f"{config.run_name}_lexical",
+            config.rerank.candidate_k,
+        )
+        lexical_lookup: dict[str, list[tuple[str, float]]] = {}
+        for result in lexical_results:
+            lexical_lookup.setdefault(result.query_id, []).append((result.doc_id, result.score))
+    else:
+        bm25 = _build_bm25(config, bundle.documents, snapshot_id, text_mode)
+        lexical_lookup = {}
+        for query in bundle.queries:
+            lexical_lookup[query.query_id] = bm25.search(query.text, config.rerank.candidate_k)
+
+    reranker = CrossEncoderReranker(
+        model_name=config.rerank.model_name,
+        text_mode=text_mode,
+        device=config.runtime.device,
+        batch_size=config.runtime.batch_size,
+    )
+    doc_lookup = {document.doc_id: document for document in bundle.documents}
+    results: list[SearchResult] = []
+    rerank_depth = min(config.rerank.candidate_k, config.retrieval.top_k)
+    final_top_k = config.retrieval.top_k
+    total_queries = len(bundle.queries)
+    _write_progress(
+        config,
+        snapshot_id,
+        "reranking",
+        0,
+        total_queries,
+        f"Loaded lexical candidates. Starting cross-encoder reranking with rerank_depth={rerank_depth}.",
+    )
+    for query_index, query in enumerate(bundle.queries, start=1):
+        _write_progress(
+            config,
+            snapshot_id,
+            "reranking",
+            query_index - 1,
+            total_queries,
+            f"Scoring query {query_index}/{total_queries} ({rerank_depth} candidates).",
+        )
+        LOGGER.info(
+            "Scoring query %s / %s for %s with %s candidates",
+            query_index,
+            total_queries,
+            config.run_name,
+            rerank_depth,
+        )
+        lexical_pairs_full = lexical_lookup.get(query.query_id, [])[:final_top_k]
+        lexical_pairs = lexical_pairs_full[:rerank_depth]
+        candidates = [doc_lookup[doc_id] for doc_id, _ in lexical_pairs if doc_id in doc_lookup]
+        reranked = reranker.rerank(query.text, candidates, rerank_depth)
+        reranked_ids = [doc_id for doc_id, _ in reranked]
+        reranked_set = set(reranked_ids)
+        tail = [(doc_id, score) for doc_id, score in lexical_pairs_full if doc_id not in reranked_set]
+        combined = reranked + tail
+        results.extend(_results_from_pairs(query.query_id, combined, config.run_name, final_top_k))
+        _write_progress(
+            config,
+            snapshot_id,
+            "reranking",
+            query_index,
+            total_queries,
+            f"Finished query {query_index}/{total_queries}.",
+        )
+        LOGGER.info(
+            "Reranked %s / %s queries for %s (rerank_depth=%s, final_top_k=%s)",
+            query_index,
+            total_queries,
+            config.run_name,
+            rerank_depth,
+            final_top_k,
+        )
+    return results
+
+
 def _run_hybrid_rerank(bundle: DatasetBundle, config: ExperimentConfig, snapshot_id: str) -> list[SearchResult]:
     if config.dataset.backend == "local_snapshot_cache" and config.retrieval.lexical_text_mode == "full_text":
         lexical_results = _run_snapshot_cache_pyterrier_lexical(
@@ -379,6 +649,47 @@ def _run_hybrid_rerank(bundle: DatasetBundle, config: ExperimentConfig, snapshot
     return results
 
 
+def _run_hybrid_rrf_rerank(bundle: DatasetBundle, config: ExperimentConfig, snapshot_id: str) -> list[SearchResult]:
+    if config.dataset.backend == "local_snapshot_cache" and config.retrieval.lexical_text_mode == "full_text":
+        lexical_results = _run_snapshot_cache_pyterrier_lexical(
+            bundle,
+            config,
+            snapshot_id,
+            config.retrieval.lexical_text_mode,
+            f"{config.run_name}_lexical",
+            config.rerank.candidate_k,
+        )
+        lexical_lookup: dict[str, list[tuple[str, float]]] = {}
+        for result in lexical_results:
+            lexical_lookup.setdefault(result.query_id, []).append((result.doc_id, result.score))
+    else:
+        bm25 = _build_bm25(config, bundle.documents, snapshot_id, config.retrieval.lexical_text_mode)
+        lexical_lookup = {}
+        for query in bundle.queries:
+            lexical_lookup[query.query_id] = bm25.search(query.text, config.rerank.candidate_k)
+
+    dense = _build_dense(config, bundle.documents, snapshot_id, config.retrieval.dense_text_mode)
+    reranker = CrossEncoderReranker(
+        model_name=config.rerank.model_name,
+        text_mode=config.retrieval.dense_text_mode,
+        device=config.runtime.device,
+        batch_size=config.runtime.batch_size,
+    )
+    doc_lookup = {document.doc_id: document for document in bundle.documents}
+    results: list[SearchResult] = []
+    candidate_k = config.rerank.candidate_k
+    output_k = config.rerank.top_k
+    for query in bundle.queries:
+        lexical_pairs = lexical_lookup.get(query.query_id, [])
+        dense_pairs = dense.search(query.text, candidate_k)
+        fused_pairs = reciprocal_rank_fusion(lexical_pairs, dense_pairs)
+        candidate_ids = [doc_id for doc_id, _score in fused_pairs[: candidate_k * 2]]
+        candidates = [doc_lookup[doc_id] for doc_id in candidate_ids if doc_id in doc_lookup]
+        reranked = reranker.rerank(query.text, candidates, output_k)
+        results.extend(_results_from_pairs(query.query_id, reranked, config.run_name, output_k))
+    return results
+
+
 def _pyterrier_status() -> str:
     try:
         _ensure_pyterrier_started()
@@ -407,10 +718,42 @@ def _pipeline_runner(config: ExperimentConfig, bundle: DatasetBundle, snapshot_i
                 "pyterrier",
             )
         return _run_lexical(bundle, config, snapshot_id, "full_text"), "internal"
+    if pipeline == "custom_lexical_fulltext_rm3":
+        if config.dataset.backend != "local_snapshot_cache":
+            raise ValueError("custom_lexical_fulltext_rm3 currently requires the local_snapshot_cache backend")
+        return (
+            _run_snapshot_cache_pyterrier_rm3(
+                bundle,
+                config,
+                snapshot_id,
+                "full_text",
+                config.run_name,
+                config.retrieval.top_k,
+            ),
+            "pyterrier",
+        )
+    if pipeline == "custom_title_abstract_rm3":
+        if config.dataset.backend != "local_snapshot_cache":
+            raise ValueError("custom_title_abstract_rm3 currently requires the local_snapshot_cache backend")
+        return (
+            _run_snapshot_cache_pyterrier_rm3(
+                bundle,
+                config,
+                snapshot_id,
+                "title_abstract",
+                config.run_name,
+                config.retrieval.top_k,
+            ),
+            "pyterrier",
+        )
+    if pipeline == "custom_title_abstract_rerank":
+        return _run_lexical_rerank(bundle, config, snapshot_id, "title_abstract"), "pyterrier"
     if pipeline == "custom_dense_rerank":
         return _run_dense_rerank(bundle, config, snapshot_id), "internal"
     if pipeline == "custom_hybrid_union_rerank":
         return _run_hybrid_rerank(bundle, config, snapshot_id), "internal"
+    if pipeline == "custom_hybrid_rrf_rerank":
+        return _run_hybrid_rrf_rerank(bundle, config, snapshot_id), "internal"
     raise ValueError(f"Unsupported pipeline: {pipeline}")
 
 
@@ -431,11 +774,49 @@ def run_baseline(config: ExperimentConfig) -> BaselineRunResult:
             len(bundle.queries),
         )
         results, backend = _pipeline_runner(config, bundle, snapshot_id)
+        if config.temporal.enabled:
+            LOGGER.info(
+                "Applying temporal rerank overlay for %s on %s (top_k=%s)",
+                config.run_name,
+                snapshot_id,
+                config.temporal.rerank_top_k,
+            )
+            _write_progress(
+                config,
+                snapshot_id,
+                "temporal_reranking",
+                0,
+                len(bundle.queries),
+                "Base retrieval finished. Starting temporal overlay.",
+            )
+            results = temporal_rerank_results(
+                results=results,
+                bundle=bundle,
+                config=config,
+                progress_callback=lambda stage, completed, total, note: _write_progress(
+                    config,
+                    snapshot_id,
+                    stage,
+                    completed,
+                    total,
+                    note,
+                ),
+            )
         run_path = snapshot_run_path(config, snapshot_id)
         metrics_path = snapshot_metrics_path(config, snapshot_id)
         per_query_path = snapshot_per_query_metrics_path(config, snapshot_id)
         ensure_parent(run_path)
         write_trec_run(results, run_path)
+        progress_path = _progress_path(config, snapshot_id)
+        if progress_path.exists():
+            _write_progress(
+                config,
+                snapshot_id,
+                "complete",
+                len(bundle.queries),
+                len(bundle.queries),
+                "Run file written. Evaluation complete or skipped depending on qrels availability.",
+            )
 
         metrics: dict[str, float] | None = None
         if bundle.metadata.has_qrels:
@@ -463,6 +844,36 @@ def run_baseline(config: ExperimentConfig) -> BaselineRunResult:
             )
         )
     return BaselineRunResult(config=config, snapshots=snapshot_results)
+
+
+def build_required_indices(config: ExperimentConfig) -> None:
+    """Build or warm the canonical first-stage indices needed by a config."""
+    configure_logging()
+    set_seed(config.runtime.seed)
+    for snapshot_id in config.dataset.snapshot_ids:
+        bundle = load_dataset_bundle(config.dataset, snapshot_id)
+        LOGGER.info(
+            "Preparing indices for %s on %s with %s documents",
+            config.run_name,
+            bundle.metadata.dataset_name,
+            len(bundle.documents),
+        )
+        pipeline = config.pipeline
+        if pipeline == "official_pyterrier":
+            _run_official_pyterrier(bundle, config, snapshot_id)
+        elif pipeline == "official_pyterrier_dense":
+            _run_official_pyterrier_dense(bundle, config, snapshot_id)
+        elif pipeline in {"custom_lexical_fulltext", "custom_lexical_fulltext_rm3"}:
+            _run_snapshot_cache_pyterrier_lexical(bundle, config, snapshot_id, "full_text", config.run_name, 1)
+        elif pipeline in {"custom_title_abstract_rm3", "custom_title_abstract_rerank"}:
+            _run_snapshot_cache_pyterrier_lexical(bundle, config, snapshot_id, "title_abstract", config.run_name, 1)
+        elif pipeline == "custom_dense_rerank":
+            _build_dense(config, bundle.documents, snapshot_id, config.retrieval.dense_text_mode)
+        elif pipeline in {"custom_hybrid_union_rerank", "custom_hybrid_rrf_rerank"}:
+            _run_snapshot_cache_pyterrier_lexical(bundle, config, snapshot_id, config.retrieval.lexical_text_mode, config.run_name, 1)
+            _build_dense(config, bundle.documents, snapshot_id, config.retrieval.dense_text_mode)
+        else:
+            raise ValueError(f"Unsupported pipeline for index build: {pipeline}")
 
 
 def clone_for_snapshot(config: ExperimentConfig, snapshot_id: str) -> ExperimentConfig:

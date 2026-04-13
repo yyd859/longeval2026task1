@@ -1,0 +1,10 @@
+extends: ../base/official_pyterrier_dense.yaml
+run_name: official_pyterrier_dense_temporal
+
+temporal:
+  enabled: true
+  rerank_top_k: 200
+  recency_weight: 0.25
+  update_weight: 0.2
+  foundation_weight: 0.15
+  novelty_weight: 0.1

@@ -17,7 +17,7 @@ if str(SRC) not in sys.path:
     sys.path.insert(0, str(SRC))
 
 from longeval_sci.config import load_config
-from longeval_sci.utils.paths import configure_pyterrier_home
+from longeval_sci.utils.paths import configure_java_home, configure_pyterrier_home
 
 
 def _status(ok: bool) -> str:
@@ -25,6 +25,7 @@ def _status(ok: bool) -> str:
 
 
 def _check_java() -> tuple[bool, dict[str, str | bool]]:
+    configure_java_home()
     java_home = os.environ.get("JAVA_HOME", "")
     details: dict[str, str | bool] = {"java_home_set": bool(java_home), "java_home": java_home or "(not set)"}
     try:

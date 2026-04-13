@@ -5,6 +5,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
+import re
 
 try:
     import yaml
@@ -63,12 +64,55 @@ class RerankConfig:
 
 
 @dataclass(slots=True)
+class ExpansionConfig:
+    enabled: bool = False
+    type: str = "none"
+    fb_terms: int = 10
+    fb_docs: int = 3
+    fb_lambda: float = 0.6
+
+
+@dataclass(slots=True)
+class TemporalConfig:
+    enabled: bool = False
+    rerank_top_k: int = 200
+    evaluation_time_field: str = "snapshot"
+    date_fields: list[str] = field(default_factory=lambda: ["updatedDate", "publishedDate", "createdDate"])
+    use_creation_date: bool = True
+    use_update_date: bool = True
+    use_age: bool = True
+    use_recency_decay: bool = True
+    use_query_intent: bool = True
+    use_lexical_novelty: bool = True
+    use_history: bool = False
+    use_cluster_fallback: bool = False
+    freshness_half_life_days: float = 90.0
+    age_half_life_days: float = 365.0
+    base_weight: float = 1.0
+    recency_weight: float = 0.25
+    update_weight: float = 0.2
+    foundation_weight: float = 0.15
+    novelty_weight: float = 0.1
+    history_boost: float = 0.1
+    cluster_boost: float = 0.05
+
+
+@dataclass(slots=True)
 class OutputConfig:
     output_root: str = "outputs"
     reports_root: str = "outputs/reports"
     run_filename: str = "run.txt"
     metrics_filename: str = "metrics.json"
     per_query_metrics_filename: str = "per_query_metrics.csv"
+
+
+@dataclass(slots=True)
+class MonthlySplitConfig:
+    enabled: bool = False
+    date_field: str = "updatedDate"
+    train_months: list[int] = field(default_factory=lambda: [3, 4])
+    validation_months: list[int] = field(default_factory=lambda: [5])
+    minimum_qrels_per_query: int = 1
 
 
 @dataclass(slots=True)
@@ -86,9 +130,12 @@ class ExperimentConfig:
     pipeline: str
     dataset: DatasetConfig
     retrieval: RetrievalConfig
+    expansion: ExpansionConfig = field(default_factory=ExpansionConfig)
     rerank: RerankConfig = field(default_factory=RerankConfig)
+    temporal: TemporalConfig = field(default_factory=TemporalConfig)
     output: OutputConfig = field(default_factory=OutputConfig)
     runtime: RuntimeConfig = field(default_factory=RuntimeConfig)
+    monthly_split: MonthlySplitConfig = field(default_factory=MonthlySplitConfig)
     metrics: list[str] = field(default_factory=lambda: list(DEFAULT_METRICS))
 
 
@@ -151,11 +198,6 @@ def baseline_output_dir(config: ExperimentConfig) -> Path:
     return Path(config.output.output_root) / config.run_name
 
 
-def baseline_reports_dir(config: ExperimentConfig) -> Path:
-    """Return the reports directory for a baseline."""
-    return Path(config.output.reports_root) / config.run_name
-
-
 def snapshot_run_path(config: ExperimentConfig, snapshot_id: str) -> Path:
     return baseline_output_dir(config) / snapshot_output_name(config.dataset, snapshot_id) / config.output.run_filename
 
@@ -168,10 +210,36 @@ def snapshot_per_query_metrics_path(config: ExperimentConfig, snapshot_id: str) 
     return baseline_output_dir(config) / snapshot_output_name(config.dataset, snapshot_id) / config.output.per_query_metrics_filename
 
 
-def snapshot_index_dir(config: ExperimentConfig, snapshot_id: str) -> Path | None:
+def _safe_component(value: str | None) -> str:
+    if not value:
+        return "default"
+    return re.sub(r"[^A-Za-z0-9._-]+", "_", value).strip("._-") or "default"
+
+
+def canonical_index_base(config: ExperimentConfig, snapshot_id: str, text_mode: str) -> Path | None:
     if not config.retrieval.index_root:
         return None
-    return Path(config.retrieval.index_root) / config.run_name / snapshot_id
+    return Path(config.retrieval.index_root) / snapshot_id / text_mode
+
+
+def canonical_lexical_index_dir(config: ExperimentConfig, snapshot_id: str, text_mode: str) -> Path | None:
+    base = canonical_index_base(config, snapshot_id, text_mode)
+    if base is None:
+        return None
+    return base / "lexical_pyterrier"
+
+
+def canonical_dense_index_dir(
+    config: ExperimentConfig,
+    snapshot_id: str,
+    text_mode: str,
+    model_name: str | None,
+    backend_label: str = "dense",
+) -> Path | None:
+    base = canonical_index_base(config, snapshot_id, text_mode)
+    if base is None:
+        return None
+    return base / backend_label / _safe_component(model_name)
 
 
 def load_config(path: str | Path) -> ExperimentConfig:
@@ -182,9 +250,12 @@ def load_config(path: str | Path) -> ExperimentConfig:
 
     dataset = DatasetConfig(**raw.get("dataset", {}))
     retrieval = RetrievalConfig(**raw["retrieval"])
+    expansion = ExpansionConfig(**raw.get("expansion", {}))
     rerank = RerankConfig(**raw.get("rerank", {}))
+    temporal = TemporalConfig(**raw.get("temporal", {}))
     output = OutputConfig(**raw.get("output", {}))
     runtime = RuntimeConfig(**raw.get("runtime", {}))
+    monthly_split = MonthlySplitConfig(**raw.get("monthly_split", {}))
     metrics = list(raw.get("metrics", list(DEFAULT_METRICS)))
 
     dataset.cache_dir = _resolve_path(base_dir, dataset.cache_dir)
@@ -200,8 +271,11 @@ def load_config(path: str | Path) -> ExperimentConfig:
         pipeline=raw["pipeline"],
         dataset=dataset,
         retrieval=retrieval,
+        expansion=expansion,
         rerank=rerank,
+        temporal=temporal,
         output=output,
         runtime=runtime,
+        monthly_split=monthly_split,
         metrics=metrics,
     )

@@ -2,48 +2,85 @@
 
 ## What Was Removed
 
-- redundant helper scripts for partial pipeline steps
-- redundant and test-only configs from `configs/`
-- the `data/` smoke-data workflow
-- one-snapshot-first evaluation assumptions
-
-Tiny synthetic data remains only under `tests/fixtures/`.
+- per-model wrapper scripts such as old `run_custom_*.py` and `run_official_*.py`
+- older one-off report builders:
+  - `build_train_snapshot1_report.py`
+  - `build_rrf_train_snapshot1_report.py`
+- stale exploratory output folders:
+  - `outputs/custom_dense_rerank/`
+  - `outputs/custom_hybrid_union_rerank/`
+  - `outputs/custom_hybrid_rrf_rerank/`
 
 ## What Changed
 
-- the repository now centers on **five canonical baselines**
-- each baseline runs across **snapshot-1**, **snapshot-2**, and **snapshot-3** by default
-- outputs are organized per method and per snapshot
-- the consolidated report now includes machine-readable files and a human-readable comparison table
-- the repo uses a project-local `.venv` and workspace-local `ir_datasets` cache
+- the repo now centers on a smaller generic workflow:
+  - `build_indices.py`
+  - `run_baseline.py`
+  - `run_all_baselines.py`
+  - `run_rrf_fusion.py`
+  - `run_temporal_overlay.py`
+  - `run_snapshot1_monthly_eval.py`
+  - `build_all_models_train_report.py`
+  - `build_monthly_split_summary.py`
+  - `build_temporal_change_report.py`
+  - `check_official_env.py`
+  - `pipeline.ipynb`
+- configs are grouped under:
+  - `configs/base/`
+  - `configs/temporal/`
+  - `configs/plans/`
+  while top-level config files remain as compatibility wrappers
+- the active comparison set is now broader than the original five-model setup:
+  - 5 base models
+  - 5 temporal sibling models
+  - 3 RRF fusion models
+- index usage is now organized around canonical text views instead of per-model duplication
+- month-based evaluation is now a filtered evaluation layer on top of existing runs
+- temporal-change reporting now reads from the unified monthly summary
 
-## New Canonical Commands
+## Canonical Commands
 
-Run all five baselines across all three snapshots:
+Build or reuse indices:
 
 ```powershell
-python scripts/run_all_baselines.py
+python scripts/build_indices.py --config configs/custom_lexical_fulltext.yaml
 ```
 
-Run one baseline:
+Run one model on `snapshot-1 train`:
 
 ```powershell
-python scripts/run_official_pyterrier.py
-python scripts/run_official_pyterrier_dense.py
-python scripts/run_custom_lexical_fulltext.py
-python scripts/run_custom_dense_rerank.py
-python scripts/run_custom_hybrid_union_rerank.py
+python scripts/run_baseline.py --config configs/custom_lexical_fulltext.yaml --train-snapshot1 --qrels-variant dctr
+python scripts/run_baseline.py --config configs/custom_title_abstract_rm3.yaml --train-snapshot1 --qrels-variant dctr
+python scripts/run_baseline.py --config configs/custom_title_abstract_rerank.yaml --train-snapshot1 --qrels-variant dctr
 ```
 
-Run the tests:
+Build RRF fusion runs from existing outputs:
 
 ```powershell
-.\.venv\Scripts\python.exe -m unittest discover tests
+python scripts/run_rrf_fusion.py --run-name rrf_bm25_ta_dense_ta --input-run outputs/official_pyterrier/snapshot-1-train/run.txt --input-run outputs/official_pyterrier_dense/snapshot-1-train/run.txt --train-snapshot1 --qrels-variant dctr
+python scripts/run_rrf_fusion.py --run-name rrf_bm25_ft_dense_ta --input-run outputs/custom_lexical_fulltext/snapshot-1-train/run.txt --input-run outputs/official_pyterrier_dense/snapshot-1-train/run.txt --train-snapshot1 --qrels-variant dctr
+python scripts/run_rrf_fusion.py --run-name rrf_bm25_ta_bm25_ft_dense_ta --input-run outputs/official_pyterrier/snapshot-1-train/run.txt --input-run outputs/custom_lexical_fulltext/snapshot-1-train/run.txt --input-run outputs/official_pyterrier_dense/snapshot-1-train/run.txt --train-snapshot1 --qrels-variant dctr
 ```
 
-## How The New Workflow Works
+Rebuild reports:
 
-1. Each baseline config defines one method.
-2. The runner executes that method across all three official snapshots.
-3. Each snapshot gets its own `run.txt`, `metrics.json`, and `per_query_metrics.csv`.
-4. The suite runner writes a consolidated comparison report across methods and snapshots.
+```powershell
+python scripts/build_all_models_train_report.py
+python scripts/build_monthly_split_summary.py
+python scripts/build_temporal_change_report.py
+```
+
+## Canonical Index Locations
+
+```text
+indexes/
+  snapshot-1/
+    title_abstract/
+      lexical_pyterrier/
+      dense/
+      official_dense/
+    fulltext/
+      lexical_pyterrier/
+```
+
+RM3, reranking, temporal overlays, and RRF fusion are overlays on top of these first-stage artifacts. They should not trigger fresh indexing unless the underlying retrieval representation changes.

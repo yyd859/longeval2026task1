@@ -6,12 +6,14 @@ import unittest
 from pathlib import Path
 
 from longeval_sci.baselines.runner import run_baseline
-from longeval_sci.config import DatasetConfig, ExperimentConfig, OutputConfig, RetrievalConfig, RerankConfig, RuntimeConfig
+from longeval_sci.config import DatasetConfig, ExperimentConfig, OutputConfig, RetrievalConfig, RerankConfig, RuntimeConfig, TemporalConfig
 from longeval_sci.evaluation.longitudinal import write_longitudinal_outputs
-from longeval_sci.io.dataset import load_dataset_bundle
+from longeval_sci.io.dataset import SearchResult, load_dataset_bundle
 from longeval_sci.rerank.cross_encoder import CrossEncoderReranker
 from longeval_sci.retrieval.bm25 import BM25Retriever
 from longeval_sci.retrieval.dense import DenseRetriever
+from longeval_sci.temporal.intent import classify_temporal_intent
+from longeval_sci.temporal.rerank import temporal_rerank_results
 
 
 FIXTURE_DIR = Path("tests/fixtures")
@@ -44,6 +46,7 @@ def _fixture_config(run_name: str, pipeline: str) -> ExperimentConfig:
             dense_text_mode="title_abstract",
         ),
         rerank=RerankConfig(enabled="rerank" in pipeline, candidate_k=100, top_k=100),
+        temporal=TemporalConfig(),
         output=OutputConfig(output_root="outputs/test_runs", reports_root="outputs/test_reports"),
         runtime=RuntimeConfig(device="cpu", batch_size=8, seed=42),
     )
@@ -78,14 +81,39 @@ class LocalFixtureIntegrationTest(unittest.TestCase):
         reranker = CrossEncoderReranker(config.rerank.model_name, text_mode="title_abstract")
         self.assertTrue(reranker.rerank("cross encoder reranking precision", bundle.documents, 3))
 
-    def test_all_five_baselines_on_fixture(self) -> None:
+    def test_temporal_overlay_smoke(self) -> None:
+        config = _fixture_config("fixture_temporal", "custom_lexical_fulltext")
+        config.temporal = TemporalConfig(enabled=True, rerank_top_k=3)
+        bundle = load_dataset_bundle(config.dataset, "snapshot-1")
+        intent = classify_temporal_intent("latest survey of scientific retrieval")
+        self.assertIn(intent.label, {"foundational", "current", "evolving", "survey"})
+
+        for index, document in enumerate(bundle.documents, start=1):
+            document.metadata["publishedDate"] = f"2025-0{index}-01"
+            document.metadata["updatedDate"] = f"2025-0{index}-15"
+        query_id = bundle.queries[0].query_id
+
+        reranked = temporal_rerank_results(
+            results=[
+                SearchResult(query_id=query_id, doc_id=document.doc_id, score=float(10 - idx), rank=idx + 1, run_name="fixture")
+                for idx, document in enumerate(bundle.documents[:3])
+            ],
+            bundle=bundle,
+            config=config,
+        )
+        self.assertEqual(len(reranked), 3)
+        self.assertEqual({result.rank for result in reranked}, {1, 2, 3})
+
+    def test_baseline_suite_on_fixture(self) -> None:
         pipelines = [
-            "official_pyterrier",
-            "official_pyterrier_dense",
             "custom_lexical_fulltext",
             "custom_dense_rerank",
             "custom_hybrid_union_rerank",
         ]
+        if os.environ.get("JAVA_HOME"):
+            pipelines.append("official_pyterrier")
+        if os.environ.get("JAVA_HOME") and os.environ.get("LONGEVAL_RUN_OFFICIAL_DENSE_SMOKE") == "1":
+            pipelines.append("official_pyterrier_dense")
         results = []
         for pipeline in pipelines:
             result = run_baseline(_fixture_config(pipeline, pipeline))

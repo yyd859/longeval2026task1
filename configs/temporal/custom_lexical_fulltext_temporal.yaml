@@ -1,0 +1,10 @@
+extends: ../base/custom_lexical_fulltext.yaml
+run_name: custom_lexical_fulltext_temporal
+
+temporal:
+  enabled: true
+  rerank_top_k: 200
+  recency_weight: 0.25
+  update_weight: 0.2
+  foundation_weight: 0.15
+  novelty_weight: 0.1

@@ -1,0 +1,62 @@
+[
+  {
+    "label": "bm25_title_abstract",
+    "map": 0.2572624910389203,
+    "method": "official_pyterrier",
+    "ndcg_cut_10": 0.29221559108544737,
+    "ndcg_cut_1000": 0.45639639909005075,
+    "recall_100": 0.6836081280512302,
+    "recall_1000": 0.8580615587340512,
+    "run_path": "outputs\\official_pyterrier\\snapshot-1-train\\run.txt"
+  },
+  {
+    "label": "dense_title_abstract",
+    "map": 0.23777381921846763,
+    "method": "official_pyterrier_dense",
+    "ndcg_cut_10": 0.282026334517185,
+    "ndcg_cut_1000": 0.44828436674215977,
+    "recall_100": 0.6389806065954771,
+    "recall_1000": 0.8613187064152928,
+    "run_path": "outputs\\official_pyterrier_dense\\snapshot-1-train\\run.txt"
+  },
+  {
+    "label": "bm25_fulltext",
+    "map": 0.28526696916176536,
+    "method": "custom_lexical_fulltext",
+    "ndcg_cut_10": 0.33017325367375333,
+    "ndcg_cut_1000": 0.5077353847617554,
+    "recall_100": 0.7393793873631186,
+    "recall_1000": 0.9245427700696421,
+    "run_path": "outputs\\custom_lexical_fulltext\\snapshot-1-train\\run.txt"
+  },
+  {
+    "label": "rrf_bm25_ta_dense_ta",
+    "map": 0.22033488716155103,
+    "method": "rrf_bm25_ta_dense_ta",
+    "ndcg_cut_10": 0.2664671000570277,
+    "ndcg_cut_1000": 0.4544371609355563,
+    "recall_100": 0.6700816039623371,
+    "recall_1000": 0.9022516236303534,
+    "run_path": "outputs\\rrf_bm25_ta_dense_ta\\snapshot-1-train\\run.txt"
+  },
+  {
+    "label": "rrf_bm25_ft_dense_ta",
+    "map": 0.27488404402362604,
+    "method": "rrf_bm25_ft_dense_ta",
+    "ndcg_cut_10": 0.31753078043128113,
+    "ndcg_cut_1000": 0.517334165741915,
+    "recall_100": 0.7806318970413293,
+    "recall_1000": 0.9667380959574122,
+    "run_path": "outputs\\rrf_bm25_ft_dense_ta\\snapshot-1-train\\run.txt"
+  },
+  {
+    "label": "rrf_bm25_ta_bm25_ft_dense_ta",
+    "map": 0.2572375613757943,
+    "method": "rrf_bm25_ta_bm25_ft_dense_ta",
+    "ndcg_cut_10": 0.30281693590552455,
+    "ndcg_cut_1000": 0.5084050484442266,
+    "recall_100": 0.787027390197183,
+    "recall_1000": 0.9805612687278468,
+    "run_path": "outputs\\rrf_bm25_ta_bm25_ft_dense_ta\\snapshot-1-train\\run.txt"
+  }
+]

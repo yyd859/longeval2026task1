@@ -1,0 +1,7 @@
+method,label,run_path,ndcg_cut_10,ndcg_cut_1000,map,recall_100,recall_1000
+official_pyterrier,bm25_title_abstract,outputs\official_pyterrier\snapshot-1-train\run.txt,0.29221559108544737,0.45639639909005075,0.2572624910389203,0.6836081280512302,0.8580615587340512
+official_pyterrier_dense,dense_title_abstract,outputs\official_pyterrier_dense\snapshot-1-train\run.txt,0.282026334517185,0.44828436674215977,0.23777381921846763,0.6389806065954771,0.8613187064152928
+custom_lexical_fulltext,bm25_fulltext,outputs\custom_lexical_fulltext\snapshot-1-train\run.txt,0.33017325367375333,0.5077353847617554,0.28526696916176536,0.7393793873631186,0.9245427700696421
+rrf_bm25_ta_dense_ta,rrf_bm25_ta_dense_ta,outputs\rrf_bm25_ta_dense_ta\snapshot-1-train\run.txt,0.2664671000570277,0.4544371609355563,0.22033488716155103,0.6700816039623371,0.9022516236303534
+rrf_bm25_ft_dense_ta,rrf_bm25_ft_dense_ta,outputs\rrf_bm25_ft_dense_ta\snapshot-1-train\run.txt,0.31753078043128113,0.517334165741915,0.27488404402362604,0.7806318970413293,0.9667380959574122
+rrf_bm25_ta_bm25_ft_dense_ta,rrf_bm25_ta_bm25_ft_dense_ta,outputs\rrf_bm25_ta_bm25_ft_dense_ta\snapshot-1-train\run.txt,0.30281693590552455,0.5084050484442266,0.2572375613757943,0.787027390197183,0.9805612687278468
