@@ -1,0 +1,10 @@
+extends: custom_title_abstract_rerank_temporal.yaml
+run_name: custom_title_abstract_rerank_temporal_citation
+
+temporal:
+  use_citation_features: true
+  citation_total_weight: 0.08
+  citation_recent_weight: 0.12
+  citation_foundation_weight: 0.08
+  citation_emerging_weight: 0.12
+  citation_outbound_weight: 0.02

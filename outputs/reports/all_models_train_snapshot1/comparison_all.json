@@ -1,16 +1,5 @@
 [
   {
-    "family": "temporal",
-    "map": 0.2977499204832748,
-    "method": "custom_title_abstract_rerank_temporal",
-    "ndcg_cut_10": 0.3518096877748593,
-    "ndcg_cut_1000": 0.4803787511133283,
-    "qrels_variant": "dctr",
-    "recall_100": 0.714102527825722,
-    "recall_1000": 0.7618894696524443,
-    "run_path": "outputs\\custom_title_abstract_rerank_temporal\\snapshot-1-train\\run.txt"
-  },
-  {
     "family": "base",
     "map": 0.28526696916176536,
     "method": "custom_lexical_fulltext",
@@ -44,6 +33,17 @@
     "run_path": "outputs\\rrf_bm25_ft_dense_ta\\snapshot-1-train\\run.txt"
   },
   {
+    "family": "temporal",
+    "map": 0.2598164272527952,
+    "method": "official_pyterrier_dense_temporal",
+    "ndcg_cut_10": 0.31007556993513724,
+    "ndcg_cut_1000": 0.46589370683562487,
+    "qrels_variant": "dctr",
+    "recall_100": 0.6422818806559099,
+    "recall_1000": 0.8613187064152928,
+    "run_path": "outputs\\official_pyterrier_dense_temporal\\snapshot-1-train\\run.txt"
+  },
+  {
     "family": "fusion",
     "map": 0.2572375613757943,
     "method": "rrf_bm25_ta_bm25_ft_dense_ta",
@@ -53,17 +53,6 @@
     "recall_100": 0.787027390197183,
     "recall_1000": 0.9805612687278468,
     "run_path": "outputs\\rrf_bm25_ta_bm25_ft_dense_ta\\snapshot-1-train\\run.txt"
-  },
-  {
-    "family": "temporal",
-    "map": 0.24976309733981836,
-    "method": "official_pyterrier_dense_temporal",
-    "ndcg_cut_10": 0.2992559757840601,
-    "ndcg_cut_1000": 0.45807705741899274,
-    "qrels_variant": "dctr",
-    "recall_100": 0.6405942764223821,
-    "recall_1000": 0.8613187064152928,
-    "run_path": "outputs\\official_pyterrier_dense_temporal\\snapshot-1-train\\run.txt"
   },
   {
     "family": "base",
@@ -99,6 +88,17 @@
     "run_path": "outputs\\custom_title_abstract_rm3\\snapshot-1-train\\run.txt"
   },
   {
+    "family": "temporal",
+    "map": 0.23486208008873732,
+    "method": "custom_title_abstract_rerank_temporal",
+    "ndcg_cut_10": 0.26769057833968685,
+    "ndcg_cut_1000": 0.4299600502531218,
+    "qrels_variant": "dctr",
+    "recall_100": 0.5437572357398378,
+    "recall_1000": 0.8580615587340512,
+    "run_path": "outputs\\custom_title_abstract_rerank_temporal\\snapshot-1-train\\run.txt"
+  },
+  {
     "family": "fusion",
     "map": 0.22033488716155103,
     "method": "rrf_bm25_ta_dense_ta",
@@ -110,11 +110,22 @@
     "run_path": "outputs\\rrf_bm25_ta_dense_ta\\snapshot-1-train\\run.txt"
   },
   {
+    "family": "temporal_citation",
+    "map": 0.2215357093734527,
+    "method": "custom_title_abstract_rerank_temporal_citation",
+    "ndcg_cut_10": 0.25618826446398446,
+    "ndcg_cut_1000": 0.41867807346853375,
+    "qrels_variant": "dctr",
+    "recall_100": 0.5439921094698941,
+    "recall_1000": 0.8580615587340512,
+    "run_path": "outputs\\custom_title_abstract_rerank_temporal_citation\\snapshot-1-train\\run.txt"
+  },
+  {
     "family": "temporal",
-    "map": 0.014420006318702161,
+    "map": 0.01442803247469156,
     "method": "custom_title_abstract_rm3_temporal",
     "ndcg_cut_10": 0.015410805851111813,
-    "ndcg_cut_1000": 0.18414155737498739,
+    "ndcg_cut_1000": 0.18417569226226643,
     "qrels_variant": "dctr",
     "recall_100": 0.043284455064881024,
     "recall_1000": 0.8701397990870099,
@@ -122,36 +133,47 @@
   },
   {
     "family": "temporal",
-    "map": 0.009088105163336895,
+    "map": 0.009103551791995967,
     "method": "custom_lexical_fulltext_temporal",
     "ndcg_cut_10": 0.008790498408515724,
-    "ndcg_cut_1000": 0.19345401808876392,
+    "ndcg_cut_1000": 0.19349962114172922,
     "qrels_variant": "dctr",
     "recall_100": 0.021283177095309136,
     "recall_1000": 0.9245427700696421,
     "run_path": "outputs\\custom_lexical_fulltext_temporal\\snapshot-1-train\\run.txt"
   },
   {
+    "family": "temporal_citation",
+    "map": 0.009100216034953243,
+    "method": "custom_lexical_fulltext_temporal_citation",
+    "ndcg_cut_10": 0.008790498408515724,
+    "ndcg_cut_1000": 0.1935004148887712,
+    "qrels_variant": "dctr",
+    "recall_100": 0.021283177095309136,
+    "recall_1000": 0.9245427700696421,
+    "run_path": "outputs\\custom_lexical_fulltext_temporal_citation\\snapshot-1-train\\run.txt"
+  },
+  {
     "family": "temporal",
-    "map": 0.008283852891980721,
+    "map": 0.008341380978917404,
     "method": "official_pyterrier_temporal",
     "ndcg_cut_10": 0.00534218214919156,
-    "ndcg_cut_1000": 0.1749354536381228,
+    "ndcg_cut_1000": 0.1750369521034167,
     "qrels_variant": "dctr",
     "recall_100": 0.02983068253022614,
     "recall_1000": 0.8580615587340512,
     "run_path": "outputs\\official_pyterrier_temporal\\snapshot-1-train\\run.txt"
   },
   {
-    "family": "temporal",
-    "map": 0.29881429521286285,
-    "method": "custom_title_abstract_rerank_temporal",
-    "ndcg_cut_10": 0.3719586641881959,
-    "ndcg_cut_1000": 0.5139014104466842,
-    "qrels_variant": "raw",
-    "recall_100": 0.7068179382323087,
-    "recall_1000": 0.7595708960691647,
-    "run_path": "outputs\\custom_title_abstract_rerank_temporal\\snapshot-1-train\\run.txt"
+    "family": "temporal_citation",
+    "map": 0.00848100039181646,
+    "method": "official_pyterrier_temporal_citation",
+    "ndcg_cut_10": 0.0045633974058634005,
+    "ndcg_cut_1000": 0.17489074375745534,
+    "qrels_variant": "dctr",
+    "recall_100": 0.02983068253022614,
+    "recall_1000": 0.8580615587340512,
+    "run_path": "outputs\\official_pyterrier_temporal_citation\\snapshot-1-train\\run.txt"
   },
   {
     "family": "base",
@@ -176,6 +198,17 @@
     "run_path": "outputs\\rrf_bm25_ft_dense_ta\\snapshot-1-train\\run.txt"
   },
   {
+    "family": "temporal",
+    "map": 0.26573091636616025,
+    "method": "official_pyterrier_dense_temporal",
+    "ndcg_cut_10": 0.343287290609122,
+    "ndcg_cut_1000": 0.507532643624159,
+    "qrels_variant": "raw",
+    "recall_100": 0.637091296730032,
+    "recall_1000": 0.8555038235857043,
+    "run_path": "outputs\\official_pyterrier_dense_temporal\\snapshot-1-train\\run.txt"
+  },
+  {
     "family": "base",
     "map": 0.27502143046399746,
     "method": "custom_title_abstract_rerank",
@@ -196,17 +229,6 @@
     "recall_100": 0.7873449247867762,
     "recall_1000": 0.9746592540758321,
     "run_path": "outputs\\rrf_bm25_ta_bm25_ft_dense_ta\\snapshot-1-train\\run.txt"
-  },
-  {
-    "family": "temporal",
-    "map": 0.25447228786606496,
-    "method": "official_pyterrier_dense_temporal",
-    "ndcg_cut_10": 0.3320867191955228,
-    "ndcg_cut_1000": 0.4991852267565448,
-    "qrels_variant": "raw",
-    "recall_100": 0.6342446015874134,
-    "recall_1000": 0.8555038235857043,
-    "run_path": "outputs\\official_pyterrier_dense_temporal\\snapshot-1-train\\run.txt"
   },
   {
     "family": "base",
@@ -254,10 +276,32 @@
   },
   {
     "family": "temporal",
-    "map": 0.010649999457551955,
+    "map": 0.2375444211847685,
+    "method": "custom_title_abstract_rerank_temporal",
+    "ndcg_cut_10": 0.2881868106391977,
+    "ndcg_cut_1000": 0.4646611055406844,
+    "qrels_variant": "raw",
+    "recall_100": 0.5474333284379894,
+    "recall_1000": 0.856086684751824,
+    "run_path": "outputs\\custom_title_abstract_rerank_temporal\\snapshot-1-train\\run.txt"
+  },
+  {
+    "family": "temporal_citation",
+    "map": 0.22244174286925275,
+    "method": "custom_title_abstract_rerank_temporal_citation",
+    "ndcg_cut_10": 0.27305795080277806,
+    "ndcg_cut_1000": 0.4513880459982657,
+    "qrels_variant": "raw",
+    "recall_100": 0.5449062974061409,
+    "recall_1000": 0.856086684751824,
+    "run_path": "outputs\\custom_title_abstract_rerank_temporal_citation\\snapshot-1-train\\run.txt"
+  },
+  {
+    "family": "temporal",
+    "map": 0.010659859914344306,
     "method": "custom_title_abstract_rm3_temporal",
     "ndcg_cut_10": 0.012934742646658124,
-    "ndcg_cut_1000": 0.2008413208262255,
+    "ndcg_cut_1000": 0.20088479515572935,
     "qrels_variant": "raw",
     "recall_100": 0.03774106381560742,
     "recall_1000": 0.8688310824768226,
@@ -265,21 +309,43 @@
   },
   {
     "family": "temporal",
-    "map": 0.009434480409151291,
+    "map": 0.009453054692962868,
     "method": "custom_lexical_fulltext_temporal",
     "ndcg_cut_10": 0.009538898588541435,
-    "ndcg_cut_1000": 0.21290468885996985,
+    "ndcg_cut_1000": 0.21296524483070176,
     "qrels_variant": "raw",
     "recall_100": 0.02171799228012432,
     "recall_1000": 0.9205377832264199,
     "run_path": "outputs\\custom_lexical_fulltext_temporal\\snapshot-1-train\\run.txt"
   },
   {
+    "family": "temporal_citation",
+    "map": 0.009449282373236185,
+    "method": "custom_lexical_fulltext_temporal_citation",
+    "ndcg_cut_10": 0.009538898588541435,
+    "ndcg_cut_1000": 0.21296229029296246,
+    "qrels_variant": "raw",
+    "recall_100": 0.02171799228012432,
+    "recall_1000": 0.9205377832264199,
+    "run_path": "outputs\\custom_lexical_fulltext_temporal_citation\\snapshot-1-train\\run.txt"
+  },
+  {
+    "family": "temporal_citation",
+    "map": 0.009019916324252983,
+    "method": "official_pyterrier_temporal_citation",
+    "ndcg_cut_10": 0.00561341018245613,
+    "ndcg_cut_1000": 0.19494310540030577,
+    "qrels_variant": "raw",
+    "recall_100": 0.030374051742713005,
+    "recall_1000": 0.856086684751824,
+    "run_path": "outputs\\official_pyterrier_temporal_citation\\snapshot-1-train\\run.txt"
+  },
+  {
     "family": "temporal",
-    "map": 0.00882412841110807,
+    "map": 0.008884557704176623,
     "method": "official_pyterrier_temporal",
     "ndcg_cut_10": 0.005534833617349991,
-    "ndcg_cut_1000": 0.19466842832445944,
+    "ndcg_cut_1000": 0.1947813459082184,
     "qrels_variant": "raw",
     "recall_100": 0.030374051742713005,
     "recall_1000": 0.856086684751824,

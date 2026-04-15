@@ -12,6 +12,12 @@ from longeval_sci.config import TemporalConfig
 from longeval_sci.io.dataset import DatasetBundle, Document
 from longeval_sci.preprocess.fields import build_document_text
 
+_SNAPSHOT_CUTOFFS = {
+    "snapshot-1": datetime(2025, 5, 31, 23, 59, 59, tzinfo=UTC),
+    "snapshot-2": datetime(2025, 8, 31, 23, 59, 59, tzinfo=UTC),
+    "snapshot-3": datetime(2025, 11, 30, 23, 59, 59, tzinfo=UTC),
+}
+
 
 @dataclass(slots=True)
 class TemporalDocumentFeatures:
@@ -70,6 +76,10 @@ def resolve_evaluation_time(bundle: DatasetBundle, config: TemporalConfig) -> da
         parsed = _parse_datetime(bundle.metadata.timestamp)
         if parsed is not None:
             return parsed
+    if config.evaluation_time_field == "snapshot":
+        snapshot_cutoff = _SNAPSHOT_CUTOFFS.get(bundle.metadata.snapshot_id)
+        if snapshot_cutoff is not None:
+            return snapshot_cutoff
 
     candidates: list[datetime] = []
     for document in bundle.documents:

@@ -1,0 +1,10 @@
+extends: official_pyterrier_temporal.yaml
+run_name: official_pyterrier_temporal_citation
+
+temporal:
+  use_citation_features: true
+  citation_total_weight: 0.08
+  citation_recent_weight: 0.12
+  citation_foundation_weight: 0.1
+  citation_emerging_weight: 0.12
+  citation_outbound_weight: 0.02

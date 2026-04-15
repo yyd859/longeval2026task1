@@ -17,10 +17,11 @@ The repo now evaluates systems at three levels:
 
 ## Current Model Inventory
 
-Right now, the repository has **13 current models** that we treat as meaningful comparison systems:
+Right now, the repository has **16 current models** that we treat as meaningful comparison systems:
 
 - 5 base models
 - 5 temporal sibling models
+- 3 citation-aware temporal sibling models
 - 3 fusion models
 
 The clean mental model is:
@@ -29,7 +30,7 @@ The clean mental model is:
 - temporal sibling models = the same base ideas, but with the temporal overlay enabled
 - fusion models = run-level RRF combinations built from existing first-stage outputs
 
-These 13 models are the current evaluation inventory for:
+These 16 models are the current evaluation inventory for:
 
 - whole-train effectiveness
 - monthly split robustness
@@ -223,6 +224,63 @@ Why it matters:
 
 - the widest current first-stage fusion
 - useful for recall-heavy analysis and for future `RRF -> rerank` experiments
+
+## The Three Citation-Aware Temporal Models
+
+These are focused Run 2 follow-ups for the three models we wanted to test first with OpenCitations features.
+
+## 14. `official_pyterrier_temporal_citation`
+
+Design idea:
+
+- title + abstract BM25
+- temporal rerank overlay
+- citation-aware temporal features added on top
+
+Why it matters:
+
+- isolates whether citation-based scientific impact helps the official BM25 temporal sibling
+
+Current local picture:
+
+- modest improvement over `official_pyterrier_temporal`
+- still much weaker than the non-temporal BM25 baseline
+
+## 15. `custom_lexical_fulltext_temporal_citation`
+
+Design idea:
+
+- full-text BM25
+- temporal rerank overlay
+- citation-aware temporal features added on top
+
+Why it matters:
+
+- tests whether citation features can stabilize or improve the strongest sparse base model once temporal reranking is enabled
+
+Current local picture:
+
+- essentially unchanged from `custom_lexical_fulltext_temporal`
+- the main issue is still the temporal weighting itself, not the absence of citation data
+
+## 16. `custom_title_abstract_rerank_temporal_citation`
+
+Design idea:
+
+- title + abstract BM25
+- cross-encoder reranking
+- temporal rerank overlay
+- citation-aware temporal features added on top
+
+Why it matters:
+
+- this is the most promising citation-aware Run 2 branch so far
+- it combines lexical relevance, second-stage semantic reranking, and scientific impact signals
+
+Current local picture:
+
+- clearly stronger than the harsher temporal-only fulltext and BM25 temporal siblings
+- still weaker than the best non-citation temporal rerank variant, so citation features are helping but not yet enough to dominate the leaderboard
 
 ## What Changed From Earlier Variants
 
@@ -478,7 +536,8 @@ On `snapshot-1` train with the provided qrels:
 
 - among the five base models, `custom_lexical_fulltext` is strongest
 - among the three current fusion models, `rrf_bm25_ft_dense_ta` is strongest
-- among the temporal sibling models, `custom_title_abstract_rerank_temporal` is currently strongest
+- among the temporal sibling models, `official_pyterrier_dense_temporal` is currently strongest
+- among the citation-aware temporal models, `custom_title_abstract_rerank_temporal_citation` is currently strongest
 - several temporal siblings are currently much weaker than their base models, which tells us the first temporal weighting pass is still very rough
 
 So the main near-term research move is not to add temporal modeling yet, but to improve:
@@ -486,4 +545,5 @@ So the main near-term research move is not to add temporal modeling yet, but to 
 - lexical expansion
 - reranking effectiveness
 - temporal weighting stability
-- and then study how all 13 systems behave under cumulative month growth using the monthly reports
+- citation-feature weighting
+- and then study how all 16 systems behave under cumulative month growth using the monthly reports

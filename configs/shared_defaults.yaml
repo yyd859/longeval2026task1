@@ -45,6 +45,11 @@ temporal:
   use_recency_decay: true
   use_query_intent: true
   use_lexical_novelty: true
+  use_citation_features: false
+  citation_network_path: .cache/ir_datasets/longeval-sci-2026/longeval-sci-2026-citation-network.csv
+  citation_cache_root: outputs/cache/temporal_citations
+  citation_recent_window_days: 180
+  exclude_self_citations: true
   freshness_half_life_days: 90.0
   age_half_life_days: 365.0
   base_weight: 1.0
@@ -52,6 +57,11 @@ temporal:
   update_weight: 0.2
   foundation_weight: 0.15
   novelty_weight: 0.1
+  citation_total_weight: 0.1
+  citation_recent_weight: 0.12
+  citation_foundation_weight: 0.1
+  citation_emerging_weight: 0.12
+  citation_outbound_weight: 0.02
 
 output:
   output_root: outputs

@@ -137,6 +137,10 @@ Candidate features:
 - snapshot membership
 - document age relative to evaluation point
 - time since last update
+- citation count as of the evaluation cutoff
+- recent citation count as of the evaluation cutoff
+- non-self citation count
+- citation velocity / trend
 - age bucket:
   - very recent
   - recent
@@ -150,6 +154,7 @@ Why they matter:
 - they are easy to compute
 - they align with the benchmark structure
 - they can be used before adding heavier content-side temporal modeling
+- they can be extended cleanly with the local OpenCitations file without rebuilding first-stage retrieval
 
 ## 2. Content-Side Temporal Signals
 
@@ -541,6 +546,13 @@ Suggested normalization rule:
 
 - store all temporal fields in `Document.metadata`
 - add helper functions that convert metadata into comparable datetimes
+
+Citation-specific note:
+
+- the local OpenCitations file should be treated as a second temporal metadata source
+- citation edges must be filtered by `creation <= evaluation_cutoff`
+- citation features should be precomputed per cutoff and then reused by temporal rerankers
+- see [TEMPORAL_CITATION_FEATURES.md](c:/Users/Will/Documents/longEval2026task1/TEMPORAL_CITATION_FEATURES.md)
 
 ## Evaluation Design
 

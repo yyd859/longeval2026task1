@@ -84,8 +84,13 @@ class TemporalConfig:
     use_recency_decay: bool = True
     use_query_intent: bool = True
     use_lexical_novelty: bool = True
+    use_citation_features: bool = False
     use_history: bool = False
     use_cluster_fallback: bool = False
+    citation_network_path: str | None = ".cache/ir_datasets/longeval-sci-2026/longeval-sci-2026-citation-network.csv"
+    citation_cache_root: str | None = "outputs/cache/temporal_citations"
+    citation_recent_window_days: int = 180
+    exclude_self_citations: bool = True
     freshness_half_life_days: float = 90.0
     age_half_life_days: float = 365.0
     base_weight: float = 1.0
@@ -93,6 +98,11 @@ class TemporalConfig:
     update_weight: float = 0.2
     foundation_weight: float = 0.15
     novelty_weight: float = 0.1
+    citation_total_weight: float = 0.1
+    citation_recent_weight: float = 0.12
+    citation_foundation_weight: float = 0.1
+    citation_emerging_weight: float = 0.12
+    citation_outbound_weight: float = 0.02
     history_boost: float = 0.1
     cluster_boost: float = 0.05
 
@@ -265,6 +275,8 @@ def load_config(path: str | Path) -> ExperimentConfig:
     output.output_root = _resolve_path(base_dir, output.output_root) or output.output_root
     output.reports_root = _resolve_path(base_dir, output.reports_root) or output.reports_root
     retrieval.index_root = _resolve_path(base_dir, retrieval.index_root)
+    temporal.citation_network_path = _resolve_path(base_dir, temporal.citation_network_path)
+    temporal.citation_cache_root = _resolve_path(base_dir, temporal.citation_cache_root)
 
     return ExperimentConfig(
         run_name=raw["run_name"],

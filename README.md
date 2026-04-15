@@ -18,12 +18,13 @@ Useful project notes:
 
 - [MODEL_OVERVIEW.md](c:/Users/Will/Documents/longEval2026task1/MODEL_OVERVIEW.md)
 - [TEMPORAL_FEATURES_DESIGN.md](c:/Users/Will/Documents/longEval2026task1/TEMPORAL_FEATURES_DESIGN.md)
+- [TEMPORAL_CITATION_FEATURES.md](c:/Users/Will/Documents/longEval2026task1/TEMPORAL_CITATION_FEATURES.md)
 - [TEMPORAL_METRICS.md](c:/Users/Will/Documents/longEval2026task1/TEMPORAL_METRICS.md)
 - [MIGRATION.md](c:/Users/Will/Documents/longEval2026task1/MIGRATION.md)
 
 ## Current Model Set
 
-We currently track **13 models** in three families.
+We currently track **16 models** in four families.
 
 Base models:
 
@@ -47,6 +48,12 @@ Fusion models:
 - `rrf_bm25_ft_dense_ta`
 - `rrf_bm25_ta_bm25_ft_dense_ta`
 
+Citation-aware temporal models:
+
+- `official_pyterrier_temporal_citation`
+- `custom_lexical_fulltext_temporal_citation`
+- `custom_title_abstract_rerank_temporal_citation`
+
 Design-level descriptions live in [MODEL_OVERVIEW.md](c:/Users/Will/Documents/longEval2026task1/MODEL_OVERVIEW.md).
 
 ## Current Findings
@@ -61,11 +68,19 @@ Current picture:
 
 - strongest base model on `snapshot-1 train`: `custom_lexical_fulltext`
 - strongest fusion model so far: `rrf_bm25_ft_dense_ta`
-- strongest temporal sibling so far: `custom_title_abstract_rerank_temporal`
+- strongest temporal sibling so far: `official_pyterrier_dense_temporal`
+- strongest citation-aware temporal sibling so far: `custom_title_abstract_rerank_temporal_citation`
 - several temporal siblings are currently too aggressive and need tuning:
   - `official_pyterrier_temporal`
   - `custom_lexical_fulltext_temporal`
   - `custom_title_abstract_rm3_temporal`
+
+Citation-feature takeaway from the current pass:
+
+- citation effects are mixed rather than uniformly helpful
+- `official_pyterrier_temporal_citation` improves some month-growth transitions relative to `official_pyterrier_temporal`, but not the whole-train headline score
+- `custom_lexical_fulltext_temporal_citation` is effectively unchanged from `custom_lexical_fulltext_temporal`
+- `custom_title_abstract_rerank_temporal_citation` is the strongest citation-aware sibling, but it still underperforms `custom_title_abstract_rerank_temporal`
 
 Official reference note:
 
@@ -229,6 +244,25 @@ python scripts/run_baseline.py --config configs/official_pyterrier_dense_tempora
 python scripts/run_baseline.py --config configs/custom_lexical_fulltext_temporal.yaml --train-snapshot1 --qrels-variant dctr
 python scripts/run_baseline.py --config configs/custom_title_abstract_rm3_temporal.yaml --train-snapshot1 --qrels-variant dctr
 python scripts/run_baseline.py --config configs/custom_title_abstract_rerank_temporal.yaml --train-snapshot1 --qrels-variant dctr
+```
+
+Apply citation-aware temporal overlays on top of existing train runs:
+
+```powershell
+python scripts/run_temporal_overlay.py --config configs/official_pyterrier_temporal_citation.yaml --input-run outputs/official_pyterrier/snapshot-1-train/run.txt --train-snapshot1 --qrels-variant dctr
+python scripts/run_temporal_overlay.py --config configs/custom_lexical_fulltext_temporal_citation.yaml --input-run outputs/custom_lexical_fulltext/snapshot-1-train/run.txt --train-snapshot1 --qrels-variant dctr
+python scripts/run_temporal_overlay.py --config configs/custom_title_abstract_rerank_temporal_citation.yaml --input-run outputs/custom_title_abstract_rerank/snapshot-1-train/run.txt --train-snapshot1 --qrels-variant dctr
+```
+
+Then evaluate those citation-aware temporal runs with the same monthly and temporal-change pipeline:
+
+```powershell
+python scripts/run_snapshot1_monthly_eval.py --config configs/official_pyterrier_temporal_citation.yaml --plan configs/plans/snapshot1_monthly_eval.yaml --qrels-variant dctr --reuse-existing-run
+python scripts/run_snapshot1_monthly_eval.py --config configs/custom_lexical_fulltext_temporal_citation.yaml --plan configs/plans/snapshot1_monthly_eval.yaml --qrels-variant dctr --reuse-existing-run
+python scripts/run_snapshot1_monthly_eval.py --config configs/custom_title_abstract_rerank_temporal_citation.yaml --plan configs/plans/snapshot1_monthly_eval.yaml --qrels-variant dctr --reuse-existing-run
+python scripts/build_all_models_train_report.py
+python scripts/build_monthly_split_summary.py
+python scripts/build_temporal_change_report.py
 ```
 
 Build RRF fusion runs from existing run files:

@@ -31,6 +31,9 @@ METHODS = [
     ("custom_lexical_fulltext_temporal", "temporal", "outputs/custom_lexical_fulltext_temporal/snapshot-1-train/run.txt", "configs/custom_lexical_fulltext_temporal.yaml"),
     ("custom_title_abstract_rm3_temporal", "temporal", "outputs/custom_title_abstract_rm3_temporal/snapshot-1-train/run.txt", "configs/custom_title_abstract_rm3_temporal.yaml"),
     ("custom_title_abstract_rerank_temporal", "temporal", "outputs/custom_title_abstract_rerank_temporal/snapshot-1-train/run.txt", "configs/custom_title_abstract_rerank_temporal.yaml"),
+    ("official_pyterrier_temporal_citation", "temporal_citation", "outputs/official_pyterrier_temporal_citation/snapshot-1-train/run.txt", "configs/official_pyterrier_temporal_citation.yaml"),
+    ("custom_lexical_fulltext_temporal_citation", "temporal_citation", "outputs/custom_lexical_fulltext_temporal_citation/snapshot-1-train/run.txt", "configs/custom_lexical_fulltext_temporal_citation.yaml"),
+    ("custom_title_abstract_rerank_temporal_citation", "temporal_citation", "outputs/custom_title_abstract_rerank_temporal_citation/snapshot-1-train/run.txt", "configs/custom_title_abstract_rerank_temporal_citation.yaml"),
     ("rrf_bm25_ta_dense_ta", "fusion", "outputs/rrf_bm25_ta_dense_ta/snapshot-1-train/run.txt", "configs/base/rrf_bm25_ta_dense_ta.yaml"),
     ("rrf_bm25_ft_dense_ta", "fusion", "outputs/rrf_bm25_ft_dense_ta/snapshot-1-train/run.txt", "configs/base/rrf_bm25_ft_dense_ta.yaml"),
     ("rrf_bm25_ta_bm25_ft_dense_ta", "fusion", "outputs/rrf_bm25_ta_bm25_ft_dense_ta/snapshot-1-train/run.txt", "configs/base/rrf_bm25_ta_bm25_ft_dense_ta.yaml"),
@@ -60,6 +63,7 @@ def _write_summary(rows_by_variant: dict[str, list[dict[str, object]]], total_mo
         "Model families:",
         "- 5 base models",
         "- 5 temporal sibling models",
+        "- 3 citation-aware temporal sibling models",
         "- 3 RRF fusion models",
         "",
     ]
