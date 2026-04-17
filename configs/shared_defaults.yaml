@@ -36,11 +36,11 @@ temporal:
   rerank_top_k: 200
   evaluation_time_field: snapshot
   date_fields:
-    - updatedDate
-    - publishedDate
     - createdDate
+    - publishedDate
+    - updatedDate
   use_creation_date: true
-  use_update_date: true
+  use_update_date: false
   use_age: true
   use_recency_decay: true
   use_query_intent: true

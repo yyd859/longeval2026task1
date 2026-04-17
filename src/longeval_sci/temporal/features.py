@@ -62,10 +62,8 @@ def _document_datetime_candidates(document: Document, config: TemporalConfig) ->
     created = _parse_datetime(document.metadata.get("createdDate"))
     published = _parse_datetime(document.metadata.get("publishedDate"))
     updated = _parse_datetime(document.metadata.get("updatedDate"))
-    publication_dt = published or created
+    publication_dt = (created or published) if config.use_creation_date else (published or created)
     update_dt = updated or publication_dt
-    if not config.use_creation_date:
-        publication_dt = published
     if not config.use_update_date:
         update_dt = publication_dt
     return publication_dt, update_dt

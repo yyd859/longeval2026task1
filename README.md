@@ -158,6 +158,11 @@ Current cumulative splits:
 - `march_april`
 - `march_april_may`
 
+Current temporal field choice:
+
+- month filtering now uses `createdDate`
+- temporal rerank overlays also default to `createdDate`
+
 Main outputs:
 
 - [monthly_comparison.md](c:/Users/Will/Documents/longEval2026task1/outputs/reports/monthly_split/_summary/monthly_comparison.md)

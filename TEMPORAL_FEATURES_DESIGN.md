@@ -504,7 +504,7 @@ temporal:
   evaluation_time_field: snapshot
   metadata_features:
     use_creation_date: true
-    use_update_date: true
+    use_update_date: false
     use_age: true
     use_recency_decay: true
   content_features:
@@ -553,6 +553,11 @@ Citation-specific note:
 - citation edges must be filtered by `creation <= evaluation_cutoff`
 - citation features should be precomputed per cutoff and then reused by temporal rerankers
 - see [TEMPORAL_CITATION_FEATURES.md](c:/Users/Will/Documents/longEval2026task1/TEMPORAL_CITATION_FEATURES.md)
+
+Current repo choice:
+
+- `createdDate` is the primary temporal field for the current Run 2 overlays
+- `updatedDate` is disabled by default in the temporal configs because many update timestamps fall outside the intended development window
 
 ## Evaluation Design
 
