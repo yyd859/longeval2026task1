@@ -2,39 +2,39 @@
   "rows": [
     {
       "split_name": "march_only",
-      "date_field": "createdDate",
+      "date_field": "publishedDate",
       "months": "3",
-      "query_count": 78,
-      "doc_count": 49631,
-      "ndcg_cut_10": 0.2366097470173559,
-      "ndcg_cut_1000": 0.24953394854045505,
-      "map": 0.20849626634201107,
-      "recall_100": 0.36538461538461536,
-      "recall_1000": 0.36538461538461536
+      "query_count": 74,
+      "doc_count": 173031,
+      "ndcg_cut_10": 0.231395368595713,
+      "ndcg_cut_1000": 0.2610752060804103,
+      "map": 0.19523920510270878,
+      "recall_100": 0.4527027027027027,
+      "recall_1000": 0.4594594594594595
     },
     {
       "split_name": "march_april",
-      "date_field": "createdDate",
+      "date_field": "publishedDate",
       "months": "3,4",
-      "query_count": 93,
-      "doc_count": 134355,
-      "ndcg_cut_10": 0.24569388735555875,
-      "ndcg_cut_1000": 0.287431852579757,
-      "map": 0.20443852779454036,
-      "recall_100": 0.5035842293906809,
-      "recall_1000": 0.5232974910394265
+      "query_count": 92,
+      "doc_count": 343421,
+      "ndcg_cut_10": 0.22587916820329926,
+      "ndcg_cut_1000": 0.2863439186131601,
+      "map": 0.18910549845240265,
+      "recall_100": 0.5580486542443064,
+      "recall_1000": 0.5905797101449276
     },
     {
       "split_name": "march_april_may",
-      "date_field": "createdDate",
+      "date_field": "publishedDate",
       "months": "3,4,5",
-      "query_count": 97,
-      "doc_count": 232307,
-      "ndcg_cut_10": 0.27747637893490484,
-      "ndcg_cut_1000": 0.35427791433448785,
-      "map": 0.24393416723692227,
-      "recall_100": 0.593233513336606,
-      "recall_1000": 0.6307887416134839
+      "query_count": 96,
+      "doc_count": 525293,
+      "ndcg_cut_10": 0.2495384871934476,
+      "ndcg_cut_1000": 0.33904031044619515,
+      "map": 0.21514756013407307,
+      "recall_100": 0.599495701058201,
+      "recall_1000": 0.6524884259259259
     }
   ]
 }

@@ -10,8 +10,8 @@ for **as-of-snapshot-date citation features** in our current LongEval-Sci models
 
 Our current temporal features are built mainly from:
 
-- `createdDate`
 - `publishedDate`
+- `createdDate`
 - `updatedDate`
 - query intent
 - lexical novelty
@@ -314,7 +314,7 @@ python scripts/build_temporal_change_report.py
 On `snapshot-1 train` with `dctr` qrels:
 
 - `custom_title_abstract_rerank_temporal_citation`
-  - `nDCG@10 = 0.2562`
+  - `nDCG@10 = 0.2543`
   - strongest citation-aware temporal variant in this pass, but still below `custom_title_abstract_rerank_temporal`
 - `custom_lexical_fulltext_temporal_citation`
   - `nDCG@10 = 0.0088`

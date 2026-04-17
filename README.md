@@ -160,8 +160,8 @@ Current cumulative splits:
 
 Current temporal field choice:
 
-- month filtering now uses `createdDate`
-- temporal rerank overlays also default to `createdDate`
+- month filtering now uses `publishedDate`
+- temporal rerank overlays also default to `publishedDate`
 
 Main outputs:
 

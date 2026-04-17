@@ -77,9 +77,9 @@ class TemporalConfig:
     enabled: bool = False
     rerank_top_k: int = 200
     evaluation_time_field: str = "snapshot"
-    date_fields: list[str] = field(default_factory=lambda: ["updatedDate", "publishedDate", "createdDate"])
-    use_creation_date: bool = True
-    use_update_date: bool = True
+    date_fields: list[str] = field(default_factory=lambda: ["publishedDate", "createdDate", "updatedDate"])
+    use_creation_date: bool = False
+    use_update_date: bool = False
     use_age: bool = True
     use_recency_decay: bool = True
     use_query_intent: bool = True
@@ -119,7 +119,7 @@ class OutputConfig:
 @dataclass(slots=True)
 class MonthlySplitConfig:
     enabled: bool = False
-    date_field: str = "createdDate"
+    date_field: str = "publishedDate"
     train_months: list[int] = field(default_factory=lambda: [3, 4])
     validation_months: list[int] = field(default_factory=lambda: [5])
     minimum_qrels_per_query: int = 1

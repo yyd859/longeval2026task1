@@ -556,7 +556,8 @@ Citation-specific note:
 
 Current repo choice:
 
-- `createdDate` is the primary temporal field for the current Run 2 overlays
+- `publishedDate` is the primary temporal field for the current Run 2 overlays
+- `createdDate` is kept as a fallback when publication metadata is missing
 - `updatedDate` is disabled by default in the temporal configs because many update timestamps fall outside the intended development window
 
 ## Evaluation Design

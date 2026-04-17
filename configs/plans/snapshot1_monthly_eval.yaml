@@ -1,5 +1,5 @@
 monthly_split:
-  date_field: createdDate
+  date_field: publishedDate
   minimum_qrels_per_query: 1
 
 splits:
