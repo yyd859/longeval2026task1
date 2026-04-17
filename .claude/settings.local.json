@@ -1,0 +1,19 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(python -c ' *)",
+      "Bash(python scripts/run_baseline.py --config configs/custom_lexical_fulltext.yaml --train-snapshot1)",
+      "Bash(echo \"started, PID=$!\")",
+      "Bash(awk '{print $5, $9}')",
+      "Bash(awk '{print $5}')",
+      "Bash(tasklist)",
+      "Bash(awk '{print $1, $11}')",
+      "Bash(python adaptive_monitor/daily_split_eval.py --step-days 7)",
+      "Bash(python adaptive_monitor/trigger_decision.py)",
+      "Bash(python adaptive_monitor/reindex_pipeline.py --mode plan)",
+      "Bash(python adaptive_monitor/reindex_pipeline.py --mode plan --last-reindex-week 2025-03-03 --staleness-rate 0.80 --coverage-gap 0.03 --temporal-gap-growth-days 20 --velocity-multiplier 1.5)",
+      "Bash(echo \"EXIT: $?\")",
+      "Bash(xargs -I{} cat d:/longeval2026task1/adaptive_monitor/outputs/reindex_pipeline/runs/{}/manifest.json)"
+    ]
+  }
+}

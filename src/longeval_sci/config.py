@@ -119,7 +119,7 @@ class OutputConfig:
 @dataclass(slots=True)
 class MonthlySplitConfig:
     enabled: bool = False
-    date_field: str = "updatedDate"
+    date_field: str = "publishedDate"
     train_months: list[int] = field(default_factory=lambda: [3, 4])
     validation_months: list[int] = field(default_factory=lambda: [5])
     minimum_qrels_per_query: int = 1

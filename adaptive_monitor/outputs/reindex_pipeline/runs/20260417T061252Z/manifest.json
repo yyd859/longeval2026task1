@@ -1,0 +1,48 @@
+{
+  "analytics_dir": "D:\\longeval2026task1\\adaptive_monitor\\outputs\\collection_analytics",
+  "config": "D:\\longeval2026task1\\configs\\custom_lexical_fulltext.yaml",
+  "created_at": "20260417T061252Z",
+  "date_field": "updatedDate",
+  "decision_csv": "D:\\longeval2026task1\\adaptive_monitor\\outputs\\reindex_pipeline\\trigger_decisions.csv",
+  "decision_json": "D:\\longeval2026task1\\adaptive_monitor\\outputs\\reindex_pipeline\\trigger_decisions.json",
+  "incremental_reindex": [],
+  "live_index_paths": [
+    "D:\\longeval2026task1\\indexes\\snapshot-1\\full_text\\lexical_pyterrier"
+  ],
+  "mode": "plan",
+  "promotion": [],
+  "qrels_variant": "dctr",
+  "run_id": "20260417T061252Z",
+  "selected_decision": {
+    "action": "soft_alert",
+    "baseline_velocity_per_day": 11.25,
+    "cutoff_date": "2026-03-08",
+    "index_coverage_gap": 3638.757322,
+    "indexed_docs_at_reindex": 239,
+    "new_docs_since_reindex": 869663,
+    "rank_stability_drop": null,
+    "reason": "staleness_rate=0.9184>0.8000 and coverage_gap=3638.7573>0.0300",
+    "staleness_rate": 0.9184,
+    "temporal_gap_days": 410,
+    "temporal_gap_growth_days": -3696,
+    "trigger_level": 1,
+    "velocity_per_day": 0.571,
+    "week_start": "2026-03-02",
+    "weekly_new_docs": 4
+  },
+  "shadow_index_paths": [
+    "D:\\longeval2026task1\\adaptive_monitor\\outputs\\reindex_pipeline\\runs\\20260417T061252Z\\shadow_indexes\\snapshot-1\\full_text\\lexical_pyterrier"
+  ],
+  "shadow_index_root": "D:\\longeval2026task1\\adaptive_monitor\\outputs\\reindex_pipeline\\runs\\20260417T061252Z\\shadow_indexes",
+  "status": "planned",
+  "thresholds": {
+    "baseline_weeks": 4,
+    "coverage_gap": 0.03,
+    "rank_stability_drop": 0.2,
+    "rank_stability_periods": 3,
+    "staleness_rate": 0.8,
+    "temporal_gap_growth_days": 20,
+    "velocity_multiplier": 1.5
+  },
+  "train_snapshot1": true
+}

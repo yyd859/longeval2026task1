@@ -77,7 +77,7 @@ def main() -> None:
             snapshot_id="snapshot-1",
             run_path=run_path,
             metrics=config.metrics,
-            date_field=monthly_cfg.get("date_field", "updatedDate"),
+            date_field=monthly_cfg.get("date_field", "publishedDate"),
             months=list(split["months"]),
             split_name=str(split["name"]),
             minimum_qrels_per_query=int(monthly_cfg.get("minimum_qrels_per_query", 1)),

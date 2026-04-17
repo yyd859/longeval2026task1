@@ -125,6 +125,28 @@ def _snapshot_dir_name(snapshot_id: str) -> str:
     return snapshot_id.replace("-", "")
 
 
+def _snapshot_cache_roots(root: Path, snapshot_id: str) -> list[Path]:
+    legacy_root = root / _snapshot_dir_name(snapshot_id)
+    if legacy_root.exists():
+        return [legacy_root]
+
+    official_names = {
+        "snapshot-1": [
+            "longeval_sci_training_2026_abstract",
+            "longeval_sci_training_2026_fulltext",
+        ],
+        "snapshot-2": [
+            "longeval_sci_test-06-08_2026_abstract",
+            "longeval_sci_test-06-08_2026_fulltext",
+        ],
+        "snapshot-3": [
+            "longeval_sci_test-09-11_2026_abstract",
+            "longeval_sci_test-09-11_2026_fulltext",
+        ],
+    }
+    return [root / name for name in official_names.get(snapshot_id, []) if (root / name).exists()]
+
+
 def _load_qrels_file(config: DatasetConfig) -> dict[str, dict[str, int]] | None:
     if not config.qrels_path or not Path(config.qrels_path).exists():
         return None
@@ -139,10 +161,15 @@ def _load_qrels_file(config: DatasetConfig) -> dict[str, dict[str, int]] | None:
 
 
 def _snapshot_cache_files(root: Path, snapshot_id: str, kind: str) -> list[Path]:
-    snapshot_root = root / _snapshot_dir_name(snapshot_id)
-    if not snapshot_root.exists():
-        raise FileNotFoundError(f"Snapshot directory not found: {snapshot_root}")
-    return sorted(path for path in snapshot_root.rglob("*.jsonl") if kind in str(path).lower())
+    snapshot_roots = _snapshot_cache_roots(root, snapshot_id)
+    if not snapshot_roots:
+        raise FileNotFoundError(f"Snapshot directory not found for {snapshot_id} under {root}")
+    return sorted(
+        path
+        for snapshot_root in snapshot_roots
+        for path in snapshot_root.rglob("*.jsonl")
+        if kind in str(path).lower()
+    )
 
 
 def _join_snapshot_text(parts: list[str]) -> str:
@@ -176,20 +203,27 @@ def iter_snapshot_cache_text_records(config: DatasetConfig, snapshot_id: str, te
 
 def _load_snapshot_cache_bundle(config: DatasetConfig, snapshot_id: str) -> DatasetBundle:
     root = Path(config.dataset_root)
-    snapshot_root = root / _snapshot_dir_name(snapshot_id)
-    if not snapshot_root.exists():
-        raise FileNotFoundError(f"Snapshot directory not found: {snapshot_root}")
+    snapshot_roots = _snapshot_cache_roots(root, snapshot_id)
+    if not snapshot_roots:
+        raise FileNotFoundError(f"Snapshot directory not found for {snapshot_id} under {root}")
 
     abstract_files = sorted(
-        path for path in snapshot_root.rglob("*.jsonl") if "abstract" in str(path).lower()
+        path
+        for snapshot_root in snapshot_roots
+        for path in snapshot_root.rglob("*.jsonl")
+        if "abstract" in str(path).lower()
     )
     fulltext_files = []
     if config.load_fulltext:
         fulltext_files = sorted(
-            path for path in snapshot_root.rglob("*.jsonl") if "fulltext" in str(path).lower()
+            path
+            for snapshot_root in snapshot_roots
+            for path in snapshot_root.rglob("*.jsonl")
+            if "fulltext" in str(path).lower()
         )
     if not abstract_files and not fulltext_files:
-        raise FileNotFoundError(f"No JSONL document files found under {snapshot_root}")
+        roots_text = ", ".join(str(path) for path in snapshot_roots)
+        raise FileNotFoundError(f"No JSONL document files found under {roots_text}")
 
     documents_by_id: dict[str, Document] = {}
 
@@ -227,12 +261,14 @@ def _load_snapshot_cache_bundle(config: DatasetConfig, snapshot_id: str) -> Data
         for record in read_records(path, "jsonl"):
             upsert_document(record, is_fulltext=True)
 
-    default_queries_name = (
-        "task1_longeval_adhoc-queries-snapshot-train.tsv"
-        if config.split == "train"
-        else "longeval_adhoc-queries-snapshot-test.tsv"
-    )
-    queries_path = Path(config.queries_path) if config.queries_path else root / default_queries_name
+    if config.queries_path:
+        queries_path = Path(config.queries_path)
+    elif config.split == "train":
+        queries_path = root / "task1_longeval_adhoc-queries-snapshot-train.tsv"
+    else:
+        task_queries_path = root / "task1_longeval_adhoc-queries-snapshot-test.tsv"
+        legacy_queries_path = root / "longeval_adhoc-queries-snapshot-test.tsv"
+        queries_path = task_queries_path if task_queries_path.exists() else legacy_queries_path
     if not queries_path.exists():
         raise FileNotFoundError(f"Queries file not found: {queries_path}")
     queries: list[Query] = []
