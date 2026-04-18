@@ -57,6 +57,15 @@ OUTPUT_DIR = ROOT / "adaptive_monitor" / "outputs" / "march_baseline"
 
 
 def _parse_dt(value: object) -> datetime | None:
+    """
+    Parse a value into a timezone-aware UTC datetime when possible.
+    
+    Parameters:
+        value (object): An ISO-8601 datetime string (or any object convertible to string). A trailing "Z" is treated as UTC. Falsy values (None, empty string) are accepted.
+    
+    Returns:
+        datetime | None: A timezone-aware `datetime` in UTC if parsing succeeds, otherwise `None`.
+    """
     if not value:
         return None
     try:
@@ -67,7 +76,16 @@ def _parse_dt(value: object) -> datetime | None:
 
 
 def build_march_run(config, bundle, memory_mb: int | None = None) -> None:
-    """Build PyTerrier index from March-and-before docs, save BM25 run."""
+    """
+    Builds a PyTerrier index containing documents published on or before the March cutoff and writes a BM25 TREC run based on that index.
+    
+    If the index directory already exists (data.properties present) the function skips indexing and reuses the existing index. The function tokenizes the dataset queries, runs BM25 retrieval (up to 1000 results per query), converts results into TREC-format SearchResult entries, and writes the run file to the configured run path.
+    
+    Parameters:
+        config: Configuration object that contains dataset identifiers and any settings required to iterate text records.
+        bundle: Dataset bundle providing `queries` (used as retrieval topics) and other dataset metadata.
+        memory_mb (int | None): Optional JVM memory (in megabytes) to pass when ensuring PyTerrier is started; if `None`, the default PyTerrier memory settings are used.
+    """
     RUN_PATH.parent.mkdir(parents=True, exist_ok=True)
 
     pt = _ensure_pyterrier_started(memory_mb)
@@ -83,6 +101,12 @@ def build_march_run(config, bundle, memory_mb: int | None = None) -> None:
         counter = {"n": 0}
 
         def filtered_records():
+            """
+            Yield text records from the dataset that have a publication date on or before the March cutoff.
+            
+            Yields:
+                Records from the dataset iterator produced by `iter_incremental_text_records`, limited to documents with `publishedDate <= MARCH_CUTOFF`. Prints a progress message every 50,000 yielded records.
+            """
             for rec in iter_incremental_text_records(
                 config.dataset,
                 SNAPSHOT_ID,
@@ -123,6 +147,16 @@ def build_march_run(config, bundle, memory_mb: int | None = None) -> None:
 
 
 def _doc_ids_by_cutoff(bundle, cutoff: datetime) -> set[str]:
+    """
+    Return the set of document IDs whose `publishedDate` is parseable and less than or equal to the given cutoff.
+    
+    Parameters:
+        bundle: Dataset bundle containing documents accessible via `bundle.documents`; each document must expose `doc_id` and `metadata`.
+        cutoff (datetime): Cutoff datetime (compared in UTC) inclusive.
+    
+    Returns:
+        A set of document ID strings for documents whose `publishedDate` parses successfully and is <= `cutoff`. Documents with missing or unparsable `publishedDate` values are excluded.
+    """
     return {
         doc.doc_id
         for doc in bundle.documents
@@ -131,7 +165,29 @@ def _doc_ids_by_cutoff(bundle, cutoff: datetime) -> set[str]:
 
 
 def evaluate_april_may(run: dict, bundle, step_days: int) -> list[dict]:
-    """Evaluate fixed March run against daily-growing qrels for April-May."""
+    """
+    Evaluate a fixed March-only retrieval run against qrels that grow over time from April 1 to May 31.
+    
+    For each cutoff date (starting at APRIL_START + step_days - 1 and advancing by step_days until WINDOW_END) this function:
+    - Restricts the supplied `run` to documents published on or before MARCH_CUTOFF.
+    - Builds qrels containing only relevant documents whose `publishedDate` is on or before the current cutoff.
+    - Evaluates the fixed March run against those cutoff-filtered qrels using the global METRICS.
+    - Records counts (March doc count, cumulative doc count, new docs since March, queries with qrels) and the aggregated metrics (rounded to 4 decimals).
+    
+    Parameters:
+        run (dict): Mapping from query id to a mapping of doc id -> score representing a retrieval run.
+        bundle: Dataset bundle providing `.qrels` and document metadata used to determine document publication dates.
+        step_days (int): Number of days between successive cutoffs.
+    
+    Returns:
+        list[dict]: Ordered list of per-cutoff result dictionaries with keys:
+            - "cutoff_date" (str): cutoff in "YYYY-MM-DD" format,
+            - "march_docs" (int): number of documents available at MARCH_CUTOFF,
+            - "cumulative_docs" (int): number of documents available at the cutoff,
+            - "new_docs_since_march" (int): non-negative count of documents added since March,
+            - "queries_with_qrels" (int): number of queries that have at least one relevant doc at the cutoff,
+            - one entry per metric from METRICS with float values rounded to 4 decimals.
+    """
     # Fixed run: only March-and-before docs
     march_docs = _doc_ids_by_cutoff(bundle, MARCH_CUTOFF)
     march_run = {
@@ -170,6 +226,22 @@ def evaluate_april_may(run: dict, bundle, step_days: int) -> list[dict]:
 
 
 def write_and_plot(results: list[dict], output_dir: Path) -> None:
+    """
+    Write evaluation results to CSV and JSON and generate a summary PNG plot.
+    
+    Parameters:
+        results (list[dict]): Sequence of per-cutoff result dictionaries. Each dictionary must include the keys
+            'cutoff_date' (date or datetime), 'ndcg_cut_10' (float), 'recall_1000' (float), and
+            'new_docs_since_march' (int or float). All other keys will be written as additional CSV/JSON fields.
+        output_dir (Path): Directory where outputs will be written. The function creates this directory if it
+            does not exist.
+    
+    Behavior:
+        - Writes march_baseline_daily_eval.csv and march_baseline_daily_eval.json into output_dir using the
+          fields from the first result as CSV columns.
+        - Attempts to generate march_baseline_april_may_eval.png plotting nDCG@10, Recall@1000, and new-doc
+          volume over the cutoffs; if matplotlib is not available, plotting is skipped.
+    """
     output_dir.mkdir(parents=True, exist_ok=True)
 
     csv_path = output_dir / "march_baseline_daily_eval.csv"
@@ -240,6 +312,20 @@ def write_and_plot(results: list[dict], output_dir: Path) -> None:
 
 
 def main() -> None:
+    """
+    Run the March-baseline build/evaluation pipeline that evaluates a fixed BM25 run over April–May.
+    
+    Parses CLI arguments, ensures a March-only BM25 run exists (building it unless skipped), evaluates that fixed run across expanding daily cutoffs from 2025-04-01 to 2025-05-31, prints a per-cutoff summary table, and writes CSV/JSON outputs and an optional plot to the configured output directory.
+    
+    CLI options:
+        --step-days    Number of days between evaluation cutoffs (default: 7).
+        --skip-build   If provided, reuse an existing run file instead of rebuilding the index/run.
+        --memory-mb    Optional memory limit (MB) passed to the PyTerrier starter.
+    
+    Side effects:
+        - May create an index and write a TREC run file.
+        - Writes evaluation CSV and JSON and, if matplotlib is available, a PNG plot to the output directory.
+    """
     parser = argparse.ArgumentParser(description="March baseline BM25 eval over April-May.")
     parser.add_argument("--step-days", type=int, default=7)
     parser.add_argument("--skip-build", action="store_true", help="Skip index/run build if run already exists.")

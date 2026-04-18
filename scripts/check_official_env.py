@@ -70,6 +70,29 @@ def _check_pyterrier() -> tuple[bool, dict[str, str | bool]]:
 
 
 def _check_dataset_cache() -> tuple[bool, dict[str, str | bool | int]]:
+    """
+    Validate the local dataset cache required for official LongEval PyTerrier runs.
+    
+    Checks that the configured dataset root exists, that a task queries TSV is present
+    (tries "task1_longeval_adhoc-queries-snapshot-test.tsv" then falls back to
+    "longeval_adhoc-queries-snapshot-test.tsv"), that each of three snapshot groups has
+    at least one existing candidate directory, and that at least one JSONL file whose
+    path contains "abstract" exists within the discovered candidate directories.
+    Also counts JSONL files whose paths contain "abstract" and "fulltext".
+    
+    Returns:
+        tuple[bool, dict[str, str | bool | int]]: A pair (ok, details) where
+            ok: `True` if the dataset root exists, the queries TSV exists, all three
+                snapshot groups have at least one existing directory, and at least one
+                abstract JSONL file was found; `False` otherwise.
+            details: A dictionary with the following keys:
+                - "dataset_root" (str): configured dataset root path
+                - "root_exists" (bool): whether the dataset root path exists
+                - "queries_exists" (bool): whether a queries TSV was found
+                - "snapshot_dirs_present" (int): number of snapshot groups with at least one existing candidate directory (0–3)
+                - "abstract_jsonl_files" (int): count of discovered JSONL files whose path contains "abstract" (case-insensitive)
+                - "fulltext_jsonl_files" (int): count of discovered JSONL files whose path contains "fulltext" (case-insensitive)
+    """
     config = load_config(ROOT / "configs" / "official_pyterrier.yaml")
     root = Path(config.dataset.dataset_root)
     queries_path = root / "task1_longeval_adhoc-queries-snapshot-test.tsv"

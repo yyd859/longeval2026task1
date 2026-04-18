@@ -49,10 +49,27 @@ DEFAULT_CONFIG = ROOT / "configs" / "custom_lexical_fulltext.yaml"
 
 
 def _timestamp() -> str:
+    """
+    Produce a UTC timestamp string formatted as YYYYMMDDTHHMMSSZ.
+    
+    Returns:
+        str: UTC timestamp in the format "YYYYMMDDTHHMMSSZ".
+    """
     return datetime.now(tz=UTC).strftime("%Y%m%dT%H%M%SZ")
 
 
 def _config_for_build(config_path: Path, *, train_snapshot1: bool, qrels_variant: str):
+    """
+    Load the configuration from a file and, when requested, return a train/eval cloned configuration.
+    
+    Parameters:
+        config_path (Path): Path to the configuration file to load.
+        train_snapshot1 (bool): If true, return a cloned configuration adapted for training/evaluation using snapshot1.
+        qrels_variant (str): Name of the qrels variant to use when cloning the configuration.
+    
+    Returns:
+        config: The loaded configuration object; if `train_snapshot1` is true, the cloned train/eval configuration.
+    """
     config = load_config(config_path)
     if train_snapshot1:
         config = clone_for_train_eval(config, qrels_variant=qrels_variant)
@@ -60,6 +77,15 @@ def _config_for_build(config_path: Path, *, train_snapshot1: bool, qrels_variant
 
 
 def _required_live_index_paths(config) -> list[Path]:
+    """
+    Compute the canonical live index directories required by the pipeline declared in `config`.
+    
+    Parameters:
+        config: Configuration object containing at least `pipeline`, `dataset.snapshot_ids`, and (for dense pipelines) `retrieval.text_mode` and `retrieval.model_name`.
+    
+    Returns:
+        paths (list[Path]): A list of canonical index directory paths for each snapshot required by the configured pipeline. Entries are omitted when a canonical path cannot be resolved for a given snapshot.
+    """
     paths: list[Path] = []
     for snapshot_id in config.dataset.snapshot_ids:
         pipeline = config.pipeline
@@ -85,6 +111,15 @@ def _required_live_index_paths(config) -> list[Path]:
 
 
 def _lexical_text_mode_for_pipeline(config) -> str | None:
+    """
+    Map a config's pipeline name to the lexical text mode required for lexical indexes.
+    
+    Parameters:
+        config: Configuration object with a `pipeline` attribute indicating the pipeline name.
+    
+    Returns:
+        "title_abstract" for pipelines that index title and abstract, "full_text" for pipelines that index full text, or `None` if the pipeline does not use a lexical text mode.
+    """
     if config.pipeline in {"official_pyterrier", "custom_title_abstract_rm3", "custom_title_abstract_rerank"}:
         return "title_abstract"
     if config.pipeline in {"custom_lexical_fulltext", "custom_lexical_fulltext_rm3"}:
@@ -93,12 +128,40 @@ def _lexical_text_mode_for_pipeline(config) -> str | None:
 
 
 def _shadow_config(config, shadow_index_root: Path):
+    """
+    Create a deep copy of `config` where the retrieval index root is set to the given shadow index directory.
+    
+    Parameters:
+        config: The pipeline configuration object to copy.
+        shadow_index_root (Path): Filesystem path to use as the shadow index root; this path is converted to a string and assigned to `retrieval.index_root` on the copied config.
+    
+    Returns:
+        The copied configuration object with `retrieval.index_root` updated to `str(shadow_index_root)`.
+    """
     shadow = deepcopy(config)
     shadow.retrieval.index_root = str(shadow_index_root)
     return shadow
 
 
 def _promote_shadow_indexes(shadow_config, live_config) -> list[dict[str, str]]:
+    """
+    Promotes shadow index directories into their live canonical locations.
+    
+    For each required index pair derived from `shadow_config` and `live_config`, moves the existing live index (if present) to a timestamped backup and replaces it with the corresponding shadow index.
+    
+    Parameters:
+        shadow_config: Configuration whose retrieval index root points to the built shadow indexes.
+        live_config: Configuration that defines the target canonical live index locations.
+    
+    Returns:
+        A list of dictionaries with keys:
+          - `shadow_path`: path to the promoted shadow index (string)
+          - `live_path`: destination live index path (string)
+          - `backup_path`: path to the backup of the previous live index (string), or an empty string if no backup was created.
+    
+    Raises:
+        FileNotFoundError: if any expected shadow index path does not exist.
+    """
     promoted = []
     for shadow_path, live_path in zip(_required_live_index_paths(shadow_config), _required_live_index_paths(live_config)):
         if not shadow_path.exists():
@@ -121,11 +184,36 @@ def _promote_shadow_indexes(shadow_config, live_config) -> list[dict[str, str]]:
 
 
 def _write_manifest(path: Path, payload: dict) -> None:
+    """
+    Write the given payload to the specified file as deterministically formatted JSON, creating parent directories if they do not exist.
+    
+    Parameters:
+        path (Path): Destination file path to write the manifest to. Existing files will be overwritten.
+        payload (dict): JSON-serializable mapping to be written; written with indent=2, sorted keys, and UTF-8 encoding.
+    """
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(json.dumps(payload, indent=2, sort_keys=True), encoding="utf-8")
 
 
 def _build_incremental_shadow(live_config, shadow_config, selected: TriggerDecision, args: argparse.Namespace, run_dir: Path) -> list[dict]:
+    """
+    Build incremental lexical shadow indexes for each dataset snapshot and return their result metadata.
+    
+    Validates that the live pipeline is lexical and that `args.last_reindex_week` is provided, computes the document window from the previous reindex week to the selected decision's week, and invokes the incremental lexical shadow build for every snapshot in `live_config.dataset.snapshot_ids`. Each snapshot's build manifest and delta index are written under `run_dir`.
+    
+    Parameters:
+        live_config: Configuration object for the live system; used to read dataset snapshots, pipeline type, and memory limit.
+        shadow_config: Configuration object for the shadow build; used to resolve shadow index paths.
+        selected (TriggerDecision): The chosen trigger decision; its `week_start` defines the end of the incremental window.
+        args (argparse.Namespace): CLI arguments; must provide `last_reindex_week` and `date_field`.
+        run_dir (Path): Base directory for run outputs; used for delta index locations and per-snapshot manifests.
+    
+    Returns:
+        list[dict]: A list of per-snapshot incremental build result dictionaries (serialized from the build results).
+    
+    Raises:
+        ValueError: If the pipeline is not a lexical PyTerrier pipeline, if `args.last_reindex_week` is missing, or if required index roots are not configured.
+    """
     text_mode = _lexical_text_mode_for_pipeline(live_config)
     if text_mode is None:
         raise ValueError(f"Incremental reindex is only implemented for lexical PyTerrier pipelines, got {live_config.pipeline}")
@@ -159,6 +247,32 @@ def _build_incremental_shadow(live_config, shadow_config, selected: TriggerDecis
 
 
 def run_pipeline(args: argparse.Namespace) -> int:
+    """
+    Run the adaptive reindex pipeline based on CLI-style arguments and write a run manifest.
+    
+    Executes trigger decision computation from analytics, selects the latest actionable decision, creates a per-run manifest, optionally builds a shadow index (incremental or full) and optionally promotes built shadow indexes to live canonical paths. Writes intermediate and final manifest state to <output_dir>/runs/<run_id>/manifest.json and prints short status messages.
+    
+    Parameters:
+        args (argparse.Namespace): Parsed CLI arguments with at least the following attributes:
+            config (str | Path): Path to the YAML pipeline configuration.
+            analytics_dir (str | Path): Directory containing analytics inputs.
+            output_dir (str | Path): Base output directory for decisions and run manifests.
+            run_id (str | None): Optional run identifier; if omitted a timestamp is used.
+            mode (str): One of "plan" or "build"; "plan" writes the manifest without building.
+            train_snapshot1 (bool): Whether to transform the config for train/eval snapshot1.
+            qrels_variant (str): Qrels variant name passed to config cloning.
+            date_field (str): Document date field name used for incremental builds.
+            staleness_rate, coverage_gap, temporal_gap_growth_days, velocity_multiplier, baseline_weeks:
+                Numeric threshold parameters used to construct trigger thresholds.
+            last_reindex_week (str | None): ISO week identifier used for incremental reindex bounds.
+            rank_stability (str | None): Optional path to rank stability data.
+            full_rebuild (bool): If true, force a full shadow build even when incremental would apply.
+            force_build (bool): If true, override safety gates (e.g., Level 1 soft alerts or dense-level restrictions).
+            promote (bool): If true, promote built shadow indexes to live canonical locations.
+    
+    Returns:
+        int: Exit status code (0 on normal completion or when no build/action is performed).
+    """
     thresholds = TriggerThresholds(
         staleness_rate=args.staleness_rate,
         coverage_gap=args.coverage_gap,
@@ -259,6 +373,11 @@ def run_pipeline(args: argparse.Namespace) -> int:
 
 
 def main() -> None:
+    """
+    CLI entry point that parses command-line options for the adaptive reindex pipeline and invokes the pipeline runner.
+    
+    Parses arguments controlling configuration paths, analytics and output directories, run identity, selection mode (plan or build), trigger thresholds and temporal parameters, index build controls (incremental vs full rebuild, force, promote), and other pipeline flags; then calls run_pipeline(args) and exits the process with its returned status code.
+    """
     parser = argparse.ArgumentParser(description="Adaptive reindex pipeline.")
     parser.add_argument("--config", default=str(DEFAULT_CONFIG))
     parser.add_argument("--analytics-dir", default=str(DEFAULT_ANALYTICS_DIR))

@@ -38,6 +38,15 @@ OUTPUT_DIR = ROOT / "adaptive_monitor" / "outputs" / "collection_analytics"
 
 
 def _parse_dt(value: object) -> datetime | None:
+    """
+    Parse a value into a timezone-aware UTC datetime if possible.
+    
+    Parameters:
+        value (object): An ISO-8601 datetime string (the function accepts values convertible to string, including strings that end with 'Z') or any object whose string form is an ISO datetime.
+    
+    Returns:
+        datetime | None: A `datetime` normalized to UTC if parsing succeeds; `None` if `value` is falsy or cannot be parsed. Timezone-naive datetimes are treated as UTC.
+    """
     if not value:
         return None
     try:
@@ -48,11 +57,32 @@ def _parse_dt(value: object) -> datetime | None:
 
 
 def _week_label(dt: datetime) -> str:
+    """
+    Return the date string for the Monday (week start) of the week containing the given datetime.
+    
+    Parameters:
+        dt (datetime): Input datetime used to determine the week.
+    
+    Returns:
+        week_start (str): Monday of dt's week formatted as "YYYY-MM-DD".
+    """
     monday = dt - timedelta(days=dt.weekday())
     return monday.strftime("%Y-%m-%d")
 
 
 def run_analytics() -> None:
+    """
+    Compute collection-level temporal monitoring metrics from document metadata and write analytics files to OUTPUT_DIR.
+    
+    Processes the configured dataset snapshot by parsing each document's published date (DATE_FIELD), aggregating counts by day and by ISO-week-start Monday, and producing the following output files in OUTPUT_DIR:
+    - daily_doc_counts.csv: per-day rows with `date`, `new_docs`, `cumulative_docs`, and `velocity_7d_avg` (7-day rolling average).
+    - weekly_doc_counts.csv: per-week rows with `week_start`, `new_docs`, and `cumulative_docs`.
+    - staleness_rate.csv: per-week staleness at the week cutoff (`week_start` + 6 days) with `cutoff_date`, `total_docs`, `stale_docs`, and `staleness_rate` (fraction older than 90 days).
+    - temporal_gap.csv: per-week temporal gap rows with `mean_doc_date` and `temporal_gap_days` computed as (SNAPSHOT_CUTOFF - mean_doc_date).
+    - summary.json: overall statistics including earliest/latest/mean dates, document counts with/without dates, date span, mean temporal gap, staleness threshold, and final staleness rate.
+    
+    Documents with missing or unparseable dates are counted and skipped; a brief human-readable summary and a per-week table are printed to stdout.
+    """
     OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
 
     print("Loading dataset bundle ...")
@@ -195,7 +225,18 @@ def run_analytics() -> None:
 
 
 def _zip_rows(weekly_rows, staleness_rows, daily_rows, window):
-    """Align weekly rows with staleness rows and weekly velocity."""
+    """
+    Align weekly analytics rows with their corresponding staleness rows and compute a per-week average daily velocity from daily counts.
+    
+    Parameters:
+        weekly_rows (Iterable[dict]): Weekly summary rows containing at least a `"week_start"` key with ISO date string for the week's Monday.
+        staleness_rows (Iterable[dict]): Staleness summary rows containing at least `"week_start"` and `"staleness_rate"`.
+        daily_rows (Iterable[dict]): Daily summary rows containing at least `"date"` (YYYY-MM-DD) and `"new_docs"`.
+        window (int): Unused by this implementation; velocity is computed as the average `new_docs` per day across the 7 days of the week.
+    
+    Returns:
+        Iterator[tuple[dict, dict, float]]: Yields tuples of `(weekly_row, staleness_row, velocity)` where `velocity` is the average number of new documents per day for that week (float).
+    """
     staleness_by_week = {r["week_start"]: r for r in staleness_rows}
     # compute weekly velocity from daily data
     daily_by_date = {r["date"]: r for r in daily_rows}
@@ -208,6 +249,15 @@ def _zip_rows(weekly_rows, staleness_rows, daily_rows, window):
 
 
 def _write_csv(rows: list[dict], path: Path) -> None:
+    """
+    Write a list of dictionary rows to a CSV file when rows are present.
+    
+    If `rows` is empty the function does nothing. The CSV header and column order are taken from the key order of the first row. The file is written using UTF-8 encoding and standard newline handling.
+    
+    Parameters:
+        rows (list[dict]): Sequence of rows where each row is a mapping of column name to value. All rows should share the same keys.
+        path (Path): Destination filesystem path for the CSV file.
+    """
     if not rows:
         return
     with path.open("w", encoding="utf-8", newline="") as f:
