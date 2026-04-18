@@ -53,6 +53,15 @@ class IndexVersion:
 
 
 def _parse_dt(value: object) -> datetime | None:
+    """
+    Parse an ISO 8601 timestamp into a timezone-aware UTC datetime.
+    
+    Parameters:
+        value (object): The input to parse (typically an ISO 8601 string). Falsy values return `None`.
+    
+    Returns:
+        datetime | None: A `datetime` object normalized to UTC if parsing succeeds, `None` if the input is falsy or cannot be parsed.
+    """
     if not value:
         return None
     try:
@@ -63,12 +72,36 @@ def _parse_dt(value: object) -> datetime | None:
 
 
 def _parse_cutoff_date(value: str) -> datetime:
+    """
+    Parse an ISO 8601 date string, normalize it to UTC, and return the timestamp at the end of that day (23:59:59).
+    
+    Parameters:
+        value (str): ISO 8601 date or datetime string (e.g., "2025-03-31" or "2025-03-31T12:34:56Z").
+    
+    Returns:
+        datetime: The parsed datetime in UTC with time set to 23:59:59.
+    
+    Raises:
+        ValueError: If `value` is not a valid ISO 8601 datetime string.
+    """
     parsed = datetime.fromisoformat(value)
     parsed = parsed.replace(tzinfo=UTC) if parsed.tzinfo is None else parsed.astimezone(UTC)
     return parsed.replace(hour=23, minute=59, second=59)
 
 
 def _read_trigger_decisions(path: Path) -> list[dict[str, str]]:
+    """
+    Load trigger decision rows from a CSV file.
+    
+    Parameters:
+        path (Path): Path to a CSV file containing trigger decision records.
+    
+    Returns:
+        list[dict[str, str]]: A list of rows where each row is a dictionary mapping CSV column names to string values.
+    
+    Raises:
+        FileNotFoundError: If the provided path does not exist.
+    """
     if not path.exists():
         raise FileNotFoundError(f"Trigger decisions not found: {path}")
     with path.open("r", encoding="utf-8", newline="") as handle:
@@ -83,6 +116,21 @@ def build_index_versions(
     include_soft_alerts: bool,
     include_next_after_window: bool,
 ) -> list[IndexVersion]:
+    """
+    Builds an ordered list of IndexVersion records from a trigger-decisions CSV and a baseline cutoff.
+    
+    Parses trigger decision rows from the provided CSV and produces a sequence that always starts with the baseline "March" index and then includes subsequent index versions whose cutoffs pass the configured filters. Cutoff rows are included only if they occur after `baseline_cutoff`, meet the configured trigger-level filtering (optionally including soft alerts), and respect the `window_end` rules (optionally including at most the first cutoff after the window). Each returned IndexVersion carries its cutoff date and the previous included cutoff date to allow constructing membership ranges.
+    
+    Parameters:
+        trigger_decisions_path (Path): Path to the CSV file containing trigger decision rows.
+        baseline_cutoff (datetime): Baseline cutoff datetime used to create the initial "march_baseline" version.
+        window_end (datetime): Inclusive window end; cutoffs after this are only included according to `include_next_after_window`.
+        include_soft_alerts (bool): If true, include trigger rows with trigger_level == 1 in addition to level >= 2.
+        include_next_after_window (bool): If true, allow including the first cutoff that occurs after `window_end`; otherwise exclude all after-window cutoffs.
+    
+    Returns:
+        list[IndexVersion]: Ordered list of IndexVersion objects starting with the baseline and followed by selected cutoffs in chronological order.
+    """
     versions = [
         IndexVersion(
             index_id=f"idx_{baseline_cutoff:%Y%m%d}_march_baseline",
@@ -130,6 +178,24 @@ def build_index_versions(
 
 
 def _document_rows(versions: list[IndexVersion], *, window_end: datetime) -> list[dict[str, object]]:
+    """
+    Builds document-to-index membership rows for documents with published dates on or before window_end.
+    
+    Parameters:
+        versions (list[IndexVersion]): Ordered index versions whose `cutoff_date` values are used to determine the first index that would contain a document.
+        window_end (datetime): Inclusive upper bound for document `publishedDate`; documents with `publishedDate` after this are ignored.
+    
+    Returns:
+        list[dict[str, object]]: Sorted list of rows where each row contains:
+            - "doc_id": document identifier (str)
+            - "publishedDate": document published timestamp in ISO 8601 (str)
+            - "first_index_id": id of the first index version that includes the document (str)
+            - "first_index_cutoff_date": cutoff date of that index version (str)
+            - "first_index_kind": index kind, e.g., "baseline", "incremental", or "full" (str)
+            - "first_index_action": action associated with that index version (str)
+            - "is_in_march_baseline": `true` if `publishedDate` is on or before the March baseline cutoff, `false` otherwise (bool)
+            - "days_after_march_cutoff": non-negative integer days between `publishedDate` and the March baseline cutoff (int)
+    """
     config = clone_for_train_eval(load_config(str(CONFIG_PATH)))
     bundle = load_dataset_bundle(config.dataset, SNAPSHOT_ID)
     cutoffs = [(_parse_cutoff_date(version.cutoff_date), version) for version in versions]
@@ -165,6 +231,17 @@ def _document_rows(versions: list[IndexVersion], *, window_end: datetime) -> lis
 
 
 def _write_csv(rows: list[dict[str, object]], path: Path) -> None:
+    """
+    Write a list of mapping rows to a CSV file at the given path, creating parent directories as needed.
+    
+    Parameters:
+        rows (list[dict[str, object]]): Sequence of dictionaries representing CSV rows. Column order and header are taken from the keys of the first dictionary in the list.
+        path (Path): Filesystem path to write the CSV file. Parent directories will be created if they do not exist.
+    
+    Behavior:
+        - If `rows` is empty, creates an empty UTF-8 file at `path`.
+        - Otherwise writes a UTF-8 CSV using the keys of `rows[0]` as the header and writes all rows in order.
+    """
     path.parent.mkdir(parents=True, exist_ok=True)
     if not rows:
         path.write_text("", encoding="utf-8")
@@ -176,6 +253,11 @@ def _write_csv(rows: list[dict[str, object]], path: Path) -> None:
 
 
 def main() -> None:
+    """
+    Builds index-version and document-to-index membership tables from trigger decisions and dataset snapshot, writes CSV/JSON outputs to the specified directory, and prints summary counts and output paths.
+    
+    This command-line entrypoint parses arguments (--trigger-decisions, --output-dir, --include-soft-alerts, --no-next-after-window, --window-end), constructs ordered index versions using the provided trigger decisions and baseline March cutoff, assigns each dataset document to the first index whose cutoff is on or after the document's publishedDate (excluding documents after the window end), and emits three files into the output directory: index_versions.csv, doc_index_membership.csv, and index_versions.json. It prints the number of index versions and document membership rows written and the paths of the CSV outputs.
+    """
     parser = argparse.ArgumentParser(description="Build doc-to-index membership tables.")
     parser.add_argument("--trigger-decisions", default=str(DEFAULT_TRIGGER_DECISIONS))
     parser.add_argument("--output-dir", default=str(DEFAULT_OUTPUT_DIR))

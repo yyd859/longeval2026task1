@@ -49,6 +49,18 @@ class TriggerDecision:
 
 
 def _read_csv(path: Path) -> list[dict[str, str]]:
+    """
+    Read a CSV file and return its rows as a list of dictionaries keyed by column names.
+    
+    Parameters:
+        path (Path): Path to the CSV file to read.
+    
+    Returns:
+        rows (list[dict[str, str]]): List of rows where each row is a mapping of column name to string value.
+    
+    Raises:
+        FileNotFoundError: If `path` does not exist.
+    """
     if not path.exists():
         raise FileNotFoundError(f"Required analytics file not found: {path}")
     with path.open("r", encoding="utf-8", newline="") as handle:
@@ -56,6 +68,15 @@ def _read_csv(path: Path) -> list[dict[str, str]]:
 
 
 def _write_csv(rows: list[dict], path: Path) -> None:
+    """
+    Write a list of row dictionaries to a CSV file at the given path, creating parent directories if necessary.
+    
+    If `rows` is empty no file is written. The CSV header is derived from the keys of the first row and all rows are written in order.
+    
+    Parameters:
+        rows (list[dict]): Sequence of dictionaries where each dict represents a CSV row (keys are column names).
+        path (Path): Destination file path for the CSV.
+    """
     path.parent.mkdir(parents=True, exist_ok=True)
     if not rows:
         return
@@ -66,6 +87,16 @@ def _write_csv(rows: list[dict], path: Path) -> None:
 
 
 def _as_int(value: object, default: int = 0) -> int:
+    """
+    Convert a value to an integer, returning a fallback when conversion is not possible.
+    
+    Parameters:
+        value (object): The value to convert; numeric types and numeric strings are supported.
+        default (int): The value to return if conversion fails.
+    
+    Returns:
+        int: The converted integer, or `default` if `value` cannot be interpreted as a number.
+    """
     try:
         return int(float(str(value)))
     except (TypeError, ValueError):
@@ -73,6 +104,16 @@ def _as_int(value: object, default: int = 0) -> int:
 
 
 def _as_float(value: object, default: float = 0.0) -> float:
+    """
+    Attempt to convert `value` to a float, returning `default` if conversion is not possible.
+    
+    Parameters:
+        value (object): The input to convert to float.
+        default (float): Fallback value returned when conversion fails.
+    
+    Returns:
+        float: The converted float, or `default` if conversion raises a `TypeError` or `ValueError`.
+    """
     try:
         return float(str(value))
     except (TypeError, ValueError):
@@ -80,6 +121,15 @@ def _as_float(value: object, default: float = 0.0) -> float:
 
 
 def _rank_stability_by_week(path: Path | None) -> dict[str, float]:
+    """
+    Load rank-stability drop values from a CSV and return them keyed by week.
+    
+    Parameters:
+        path: Path to a CSV containing a `rank_stability_drop` column and either `week_start` or `cutoff_date` to identify the week. If `path` is `None` or does not exist, the function returns an empty mapping.
+    
+    Returns:
+        dict[str, float]: Mapping from week (value of `week_start` or `cutoff_date`) to the `rank_stability_drop` parsed as a float; weeks without a valid key are skipped and an empty dict is returned when no data is available.
+    """
     if path is None or not path.exists():
         return {}
     rows = _read_csv(path)
@@ -99,6 +149,20 @@ def compute_trigger_decisions(
     last_reindex_week: str | None = None,
     rank_stability_path: Path | None = None,
 ) -> list[TriggerDecision]:
+    """
+    Generate weekly reindex trigger decisions from collection analytics CSV outputs.
+    
+    Reads required analytics files (weekly_doc_counts.csv, staleness_rate.csv, temporal_gap.csv) from analytics_dir, optionally incorporates rank-stability input, computes baseline velocity and per-week metrics (coverage gap, velocity, staleness, temporal gap and growth, optional rank stability drop), and returns a TriggerDecision for each week indicating trigger_level, action, and human-readable reason.
+    
+    Parameters:
+        analytics_dir (Path): Directory containing analytics CSV files; defaults to DEFAULT_ANALYTICS_DIR.
+        thresholds (TriggerThresholds | None): Threshold values to drive decision logic; when None, uses defaults.
+        last_reindex_week (str | None): Optional week identifier (matches `week_start`) marking the last reindex; used to compute new docs since reindex and baseline selection. If not provided or not found, the first weekly row is used as the baseline.
+        rank_stability_path (Path | None): Optional path to a rank-stability CSV; when provided, sustained rank-drop across recent periods can raise the trigger to a full rebuild.
+    
+    Returns:
+        list[TriggerDecision]: A list of TriggerDecision objects (one per input week) containing computed metrics, trigger_level (0–3), action ('none', 'soft_alert', 'incremental_reindex', 'full_rebuild'), and a reason string.
+    """
     thresholds = thresholds or TriggerThresholds()
     weekly_rows = _read_csv(analytics_dir / "weekly_doc_counts.csv")
     staleness_rows = _read_csv(analytics_dir / "staleness_rate.csv")
@@ -206,6 +270,16 @@ def compute_trigger_decisions(
 
 
 def write_trigger_decisions(decisions: list[TriggerDecision], output_dir: Path) -> tuple[Path, Path]:
+    """
+    Write a list of TriggerDecision records to disk as CSV and JSON files and return their file paths.
+    
+    Parameters:
+        decisions (list[TriggerDecision]): Decisions to serialize and persist.
+        output_dir (Path): Directory where output files will be created; it will be created if it does not exist.
+    
+    Returns:
+        tuple[Path, Path]: Tuple containing the path to the written CSV file and the path to the written JSON file, in that order.
+    """
     output_dir.mkdir(parents=True, exist_ok=True)
     rows = [asdict(decision) for decision in decisions]
     csv_path = output_dir / "trigger_decisions.csv"
@@ -216,11 +290,25 @@ def write_trigger_decisions(decisions: list[TriggerDecision], output_dir: Path) 
 
 
 def latest_actionable_decision(decisions: list[TriggerDecision]) -> TriggerDecision | None:
+    """
+    Return the most recent decision that requires action.
+    
+    Parameters:
+        decisions (list[TriggerDecision]): Sequence of weekly decisions ordered chronologically.
+    
+    Returns:
+        TriggerDecision | None: The last decision whose `trigger_level` is greater than 0, or `None` if no actionable decisions exist.
+    """
     actionable = [decision for decision in decisions if decision.trigger_level > 0]
     return actionable[-1] if actionable else None
 
 
 def main() -> None:
+    """
+    Parse command-line arguments, compute weekly adaptive reindex trigger decisions, write outputs, and print a brief summary.
+    
+    This function provides a CLI that accepts analytics and output directory paths, optional last reindex week and rank-stability CSV, and threshold overrides (staleness rate, coverage gap, temporal gap growth days, velocity multiplier, baseline weeks). It runs compute_trigger_decisions(...) with the provided options, writes results to CSV and JSON in the output directory, prints the written file paths and number of decisions, and prints the most recent actionable decision (or "none" if none exist).
+    """
     parser = argparse.ArgumentParser(description="Compute adaptive reindex trigger decisions.")
     parser.add_argument("--analytics-dir", default=str(DEFAULT_ANALYTICS_DIR))
     parser.add_argument("--output-dir", default=str(DEFAULT_OUTPUT_DIR))

@@ -51,6 +51,15 @@ BASELINE_CUTOFF = WINDOW_START - timedelta(seconds=1)  # 2025-02-28T23:59:59
 
 
 def _parse_dt(value: object) -> datetime | None:
+    """
+    Convert a value to a UTC-aware datetime or return None when the input is missing or cannot be parsed.
+    
+    Parameters:
+        value (object): A datetime-like value (commonly an ISO-8601 string, possibly ending with 'Z'). If the value is None or empty, the function returns None.
+    
+    Returns:
+        datetime | None: A timezone-aware `datetime` normalized to UTC when parsing succeeds, or `None` if the input is falsy or unparsable.
+    """
     if not value:
         return None
     try:
@@ -61,6 +70,16 @@ def _parse_dt(value: object) -> datetime | None:
 
 
 def _doc_ids_by_cutoff(bundle, cutoff: datetime) -> set[str]:
+    """
+    Collect document IDs whose `publishedDate` is less than or equal to a cutoff.
+    
+    Parameters:
+        bundle: An object with a `documents` iterable; each document must have `doc_id` and a `metadata` mapping containing the date field defined by `DATE_FIELD`.
+        cutoff (datetime): A timezone-aware datetime used as the inclusive upper bound for `publishedDate`.
+    
+    Returns:
+        set[str]: Set of document IDs with a parsed `publishedDate` that is not None and is <= `cutoff`.
+    """
     return {
         doc.doc_id
         for doc in bundle.documents
@@ -69,6 +88,18 @@ def _doc_ids_by_cutoff(bundle, cutoff: datetime) -> set[str]:
 
 
 def _filter_run(run: dict, allowed_docs: set[str], allowed_qids: set[str]) -> dict:
+    """
+    Filter a TREC run to retain only specified queries and documents.
+    
+    Parameters:
+        run (dict): Mapping from query id to a mapping of document id to score (run[qid][docid] = score).
+        allowed_docs (set[str]): Document ids that should be kept in each query's results.
+        allowed_qids (set[str]): Query ids that should be retained in the returned run.
+    
+    Returns:
+        dict: A filtered run dictionary containing only query ids in `allowed_qids`, where each query maps
+        to a dict of its documents whose ids are in `allowed_docs`.
+    """
     return {
         qid: {d: s for d, s in docs.items() if d in allowed_docs}
         for qid, docs in run.items()
@@ -77,6 +108,16 @@ def _filter_run(run: dict, allowed_docs: set[str], allowed_qids: set[str]) -> di
 
 
 def _eval(qrels: dict, run: dict) -> dict[str, float]:
+    """
+    Compute aggregated metrics for a TREC run against provided qrels.
+    
+    Parameters:
+        qrels (dict): Query relevance judgments mapping query id to a mapping of document id to relevance (e.g., {qid: {docid: int}}). If empty or falsy, the function returns zeros for all configured metrics.
+        run (dict): Retrieved run mapping query id to a mapping of document id to score (e.g., {qid: {docid: float}}).
+    
+    Returns:
+        dict[str, float]: Mapping from metric name to its aggregated value (float) for the configured METRICS. If `qrels` is falsy, returns 0.0 for each metric.
+    """
     if not qrels:
         return {m: 0.0 for m in METRICS}
     aggregate, _ = evaluate_run_dict(qrels, run, METRICS)
@@ -84,6 +125,29 @@ def _eval(qrels: dict, run: dict) -> dict[str, float]:
 
 
 def run_comparison(run_path: Path, step_days: int) -> list[dict]:
+    """
+    Compare three reindexing scenarios over successive time cutoffs using a TREC run and the dataset bundle for SNAPSHOT_ID.
+    
+    This function repeatedly filters the provided run by document publication date at incremental cutoffs and evaluates three scenarios — no_reindex (fixed baseline index), append_reindex (cumulative index up to the cutoff), and global_reindex (treated equivalent to append_reindex for this dataset) — computing aggregated metrics for each cutoff.
+    
+    Parameters:
+        run_path (Path): Path to the TREC run file to evaluate.
+        step_days (int): Number of days between successive cutoff points (controls cutoff increment).
+    
+    Returns:
+        list[dict]: A list of per-cutoff result records. Each record contains:
+            - "cutoff_date" (str): cutoff in "YYYY-MM-DD" format.
+            - "days_since_start" (int): days elapsed since WINDOW_START (inclusive).
+            - "baseline_docs" (int): count of documents in the baseline (published <= BASELINE_CUTOFF).
+            - "cumulative_docs" (int): count of documents published <= cutoff.
+            - For each metric in METRICS, three keys with rounded values:
+                - "no_reindex_<metric>"
+                - "append_<metric>"
+                - "global_<metric>"
+    
+    Raises:
+        RuntimeError: if the dataset bundle contains no qrels for the configured snapshot.
+    """
     config = clone_for_train_eval(load_config(str(CONFIG_PATH)))
     bundle = load_dataset_bundle(config.dataset, SNAPSHOT_ID)
 
@@ -139,6 +203,17 @@ def run_comparison(run_path: Path, step_days: int) -> list[dict]:
 
 
 def write_outputs(results: list[dict], output_dir: Path) -> None:
+    """
+    Write the provided results to CSV and JSON files inside the given output directory.
+    
+    Creates the directory if it does not exist, writes:
+    - scenario_comparison.csv: a CSV using the first result's keys as column headers and all rows from `results`.
+    - scenario_comparison.json: pretty-printed JSON with two-space indentation.
+    
+    Parameters:
+        results (list[dict]): Sequence of per-cutoff result records (each dict represents one row).
+        output_dir (Path): Directory where `scenario_comparison.csv` and `scenario_comparison.json` will be written.
+    """
     output_dir.mkdir(parents=True, exist_ok=True)
 
     csv_path = output_dir / "scenario_comparison.csv"
@@ -153,6 +228,15 @@ def write_outputs(results: list[dict], output_dir: Path) -> None:
 
 
 def plot_results(results: list[dict], output_dir: Path) -> None:
+    """
+    Create and save a two-row plot showing nDCG@10 over cutoff dates for three reindexing scenarios and the cumulative document count.
+    
+    Parameters:
+        results (list[dict]): Sequence of per-cutoff result dictionaries. Each dict must contain the keys
+            "cutoff_date", "no_reindex_ndcg_cut_10", "append_ndcg_cut_10", "global_ndcg_cut_10", and "cumulative_docs".
+        output_dir (Path): Directory where the PNG plot "scenario_comparison_ndcg10.png" will be written.
+    
+    """
     try:
         import matplotlib
         matplotlib.use("Agg")
@@ -202,6 +286,11 @@ def plot_results(results: list[dict], output_dir: Path) -> None:
 
 
 def main() -> None:
+    """
+    Run the three-scenario reindex comparison as a command-line entry point.
+    
+    Parses CLI arguments for a TREC run file, step size in days, and output directory; validates the run file exists (exits with status 1 if missing); executes the cutoff-by-cutoff comparison, prints a tabular nDCG@10 summary to stdout, writes CSV/JSON results to the output directory, and attempts to generate and save an nDCG@10 plot.
+    """
     parser = argparse.ArgumentParser(description="Three-scenario reindex comparison.")
     parser.add_argument(
         "--run",

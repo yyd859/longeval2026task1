@@ -40,6 +40,15 @@ WINDOW_END = datetime(2025, 5, 31, 23, 59, 59, tzinfo=UTC)
 
 
 def _parse_dt(value: object) -> datetime | None:
+    """
+    Parse a value into a timezone-aware UTC datetime if it represents an ISO-format timestamp.
+    
+    Parameters:
+        value (object): A value representing a date/time (commonly an ISO-formatted string or datetime). Falsy values return None.
+    
+    Returns:
+        datetime | None: A `datetime` object with UTC tzinfo when parsing succeeds, or `None` if `value` is falsy or not a valid ISO datetime.
+    """
     if not value:
         return None
     try:
@@ -50,6 +59,17 @@ def _parse_dt(value: object) -> datetime | None:
 
 
 def _doc_ids_up_to(bundle, cutoff: datetime, date_field: str) -> set[str]:
+    """
+    Collects document IDs from the bundle whose specified metadata date is on or before the cutoff.
+    
+    Parameters:
+        bundle: An object with a `documents` iterable; each document must expose `metadata` (a mapping) and `doc_id`.
+        cutoff (datetime): Cutoff datetime; documents with parsed metadata datetime less than or equal to this are included.
+        date_field (str): Metadata key containing the date string to parse (passed to `_parse_dt`).
+    
+    Returns:
+        set[str]: Set of document IDs whose parsed `date_field` value is less than or equal to `cutoff`.
+    """
     allowed: set[str] = set()
     for doc in bundle.documents:
         dt = _parse_dt(doc.metadata.get(date_field))
@@ -59,6 +79,17 @@ def _doc_ids_up_to(bundle, cutoff: datetime, date_field: str) -> set[str]:
 
 
 def _filter_qrels(qrels, allowed_doc_ids: set[str], min_qrels: int = 1):
+    """
+    Filter qrels to only include judgments for documents present in `allowed_doc_ids` and drop queries with fewer than `min_qrels` remaining.
+    
+    Parameters:
+        qrels (dict): Mapping from query id to a dict of document id -> relevance judgment.
+        allowed_doc_ids (set[str]): Set of document ids that are permitted to remain in the qrels.
+        min_qrels (int): Minimum number of judgments required for a query to be kept.
+    
+    Returns:
+        dict: A filtered qrels mapping where each query maps to a dict of kept document id -> relevance, and only queries with at least `min_qrels` judgments are included.
+    """
     filtered = {}
     for qid, docrels in qrels.items():
         kept = {d: r for d, r in docrels.items() if d in allowed_doc_ids}
@@ -68,6 +99,17 @@ def _filter_qrels(qrels, allowed_doc_ids: set[str], min_qrels: int = 1):
 
 
 def _filter_run(run, allowed_doc_ids: set[str], allowed_qids: set[str]):
+    """
+    Return a new run dictionary restricted to the provided query IDs and document IDs.
+    
+    Parameters:
+        run (dict): Mapping from query id to a mapping of doc id -> score.
+        allowed_doc_ids (set[str]): Document IDs permitted in the filtered run.
+        allowed_qids (set[str]): Query IDs to retain in the filtered run.
+    
+    Returns:
+        dict: Filtered run where each returned query id is in `allowed_qids` and its document map contains only doc ids present in `allowed_doc_ids`. Queries in `allowed_qids` with no remaining documents are included with an empty mapping.
+    """
     filtered = {}
     for qid, docs in run.items():
         if qid not in allowed_qids:
@@ -77,6 +119,30 @@ def _filter_run(run, allowed_doc_ids: set[str], allowed_qids: set[str]):
 
 
 def evaluate_daily_splits(run_path: Path, step_days: int = 7) -> list[dict]:
+    """
+    Evaluate retrieval metrics over cumulative daily time windows for a TREC run.
+    
+    For each cutoff date between the configured WINDOW_START and WINDOW_END (stepping by
+    `step_days`), this function restricts documents and qrels to those with `publishedDate`
+    on or before the cutoff, filters the provided TREC run accordingly, and computes the
+    aggregated metrics defined by `METRICS`.
+    
+    Parameters:
+        run_path (Path): Path to the TREC-format run file to evaluate.
+        step_days (int): Number of days between consecutive cutoff windows (default: 7).
+    
+    Returns:
+        list[dict]: A list of per-window result records. Each record contains:
+            - cutoff_date (str): Cutoff date as YYYY-MM-DD.
+            - days_since_start (int): Days from WINDOW_START to the cutoff, inclusive.
+            - doc_count (int): Number of documents allowed up to the cutoff.
+            - query_count (int): Number of queries remaining after qrel filtering.
+            - nDCG@10, nDCG@1000, MAP, Recall@100, Recall@1000 (float): Aggregated metrics
+              rounded to 4 decimal places (names correspond to entries in `METRICS`).
+    
+    Raises:
+        RuntimeError: If the dataset bundle contains no qrels for the configured snapshot.
+    """
     config = clone_for_train_eval(load_config(str(CONFIG_PATH)))
     bundle = load_dataset_bundle(config.dataset, SNAPSHOT_ID)
 
@@ -110,6 +176,15 @@ def evaluate_daily_splits(run_path: Path, step_days: int = 7) -> list[dict]:
 
 
 def write_outputs(results: list[dict], output_dir: Path) -> None:
+    """
+    Write per-cutoff evaluation results to CSV, JSON, and a Markdown summary in the given output directory.
+    
+    Creates the files daily_split_metrics.csv, daily_split_metrics.json, and daily_split_summary.md inside output_dir (directory is created if missing). The CSV contains one row per entry in results using the keys of the first result as columns. The JSON is a pretty-printed serialization of results. The Markdown file contains a human-readable table with columns: Cutoff Date, Days, Docs, Queries, nDCG@10, nDCG@1000, MAP, Recall@100, Recall@1000. Prints the output directory and filenames after writing.
+    
+    Parameters:
+        results (list[dict]): Sequence of per-window result dictionaries. Each dict is expected to include at least the keys: 'cutoff_date', 'days_since_start', 'doc_count', 'query_count', 'ndcg_cut_10', 'ndcg_cut_1000', 'map', 'recall_100', and 'recall_1000'.
+        output_dir (Path): Destination directory for the generated files; will be created if it does not exist.
+    """
     output_dir.mkdir(parents=True, exist_ok=True)
 
     csv_path = output_dir / "daily_split_metrics.csv"
@@ -145,6 +220,11 @@ def write_outputs(results: list[dict], output_dir: Path) -> None:
 
 
 def main() -> None:
+    """
+    Run the daily cumulative split evaluation from the command line.
+    
+    Parses CLI arguments for a TREC run file, step size, and output directory; validates the run file exists (exits with status 1 if missing); computes per-cutoff evaluation results via evaluate_daily_splits; prints a compact tabular preview to stdout; and writes CSV, JSON, and Markdown outputs to the specified output directory.
+    """
     parser = argparse.ArgumentParser(description="Daily cumulative split evaluation for BM25 fulltext.")
     parser.add_argument(
         "--run",
