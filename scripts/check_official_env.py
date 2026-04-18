@@ -70,21 +70,62 @@ def _check_pyterrier() -> tuple[bool, dict[str, str | bool]]:
 
 
 def _check_dataset_cache() -> tuple[bool, dict[str, str | bool | int]]:
+    """
+    Validate the local dataset cache required for official LongEval PyTerrier runs.
+    
+    Checks that the configured dataset root exists, that a task queries TSV is present
+    (tries "task1_longeval_adhoc-queries-snapshot-test.tsv" then falls back to
+    "longeval_adhoc-queries-snapshot-test.tsv"), that each of three snapshot groups has
+    at least one existing candidate directory, and that at least one JSONL file whose
+    path contains "abstract" exists within the discovered candidate directories.
+    Also counts JSONL files whose paths contain "abstract" and "fulltext".
+    
+    Returns:
+        tuple[bool, dict[str, str | bool | int]]: A pair (ok, details) where
+            ok: `True` if the dataset root exists, the queries TSV exists, all three
+                snapshot groups have at least one existing directory, and at least one
+                abstract JSONL file was found; `False` otherwise.
+            details: A dictionary with the following keys:
+                - "dataset_root" (str): configured dataset root path
+                - "root_exists" (bool): whether the dataset root path exists
+                - "queries_exists" (bool): whether a queries TSV was found
+                - "snapshot_dirs_present" (int): number of snapshot groups with at least one existing candidate directory (0–3)
+                - "abstract_jsonl_files" (int): count of discovered JSONL files whose path contains "abstract" (case-insensitive)
+                - "fulltext_jsonl_files" (int): count of discovered JSONL files whose path contains "fulltext" (case-insensitive)
+    """
     config = load_config(ROOT / "configs" / "official_pyterrier.yaml")
     root = Path(config.dataset.dataset_root)
-    queries_path = root / "longeval_adhoc-queries-snapshot-test.tsv"
-    snapshot_dirs = [root / "snapshot1", root / "snapshot2", root / "snapshot3"]
-    abstract_counts = sum(len(list(path.rglob("*abstract*/documents/*.jsonl"))) for path in snapshot_dirs if path.exists())
-    fulltext_counts = sum(len(list(path.rglob("*fulltext*/documents/*.jsonl"))) for path in snapshot_dirs if path.exists())
+    queries_path = root / "task1_longeval_adhoc-queries-snapshot-test.tsv"
+    if not queries_path.exists():
+        queries_path = root / "longeval_adhoc-queries-snapshot-test.tsv"
+    snapshot_groups = [
+        [root / "snapshot1", root / "longeval_sci_training_2026_abstract", root / "longeval_sci_training_2026_fulltext"],
+        [root / "snapshot2", root / "longeval_sci_test-06-08_2026_abstract", root / "longeval_sci_test-06-08_2026_fulltext"],
+        [root / "snapshot3", root / "longeval_sci_test-09-11_2026_abstract", root / "longeval_sci_test-09-11_2026_fulltext"],
+    ]
+    snapshot_dirs_present = sum(any(path.exists() for path in group) for group in snapshot_groups)
+    candidate_dirs = [path for group in snapshot_groups for path in group if path.exists()]
+    abstract_counts = sum(
+        1
+        for path in candidate_dirs
+        for jsonl_path in path.rglob("*.jsonl")
+        if "abstract" in str(jsonl_path).lower()
+    )
+    fulltext_counts = sum(
+        1
+        for path in candidate_dirs
+        for jsonl_path in path.rglob("*.jsonl")
+        if "fulltext" in str(jsonl_path).lower()
+    )
     details: dict[str, str | bool | int] = {
         "dataset_root": str(root),
         "root_exists": root.exists(),
         "queries_exists": queries_path.exists(),
-        "snapshot_dirs_present": sum(path.exists() for path in snapshot_dirs),
+        "snapshot_dirs_present": snapshot_dirs_present,
         "abstract_jsonl_files": abstract_counts,
         "fulltext_jsonl_files": fulltext_counts,
     }
-    ok = root.exists() and queries_path.exists() and all(path.exists() for path in snapshot_dirs) and abstract_counts > 0
+    ok = root.exists() and queries_path.exists() and snapshot_dirs_present == 3 and abstract_counts > 0
     return ok, details
 
 

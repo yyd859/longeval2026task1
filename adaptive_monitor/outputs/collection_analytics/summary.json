@@ -1,0 +1,13 @@
+{
+  "total_documents": 869902,
+  "documents_with_date": 869902,
+  "documents_without_date": 0,
+  "earliest_date": "2014-03-04",
+  "latest_date": "2026-03-04",
+  "mean_date": "2024-04-16",
+  "date_span_days": 4382,
+  "snapshot_cutoff": "2025-05-31",
+  "mean_temporal_gap_days": 410,
+  "staleness_threshold_days": 90,
+  "final_staleness_rate": 0.9184
+}

@@ -122,10 +122,62 @@ def _load_local_bundle(config: DatasetConfig, snapshot_id: str) -> DatasetBundle
 
 
 def _snapshot_dir_name(snapshot_id: str) -> str:
+    """
+    Normalize a snapshot identifier by removing all hyphen characters.
+    
+    Parameters:
+        snapshot_id (str): Snapshot identifier, typically containing dashes.
+    
+    Returns:
+        str: The snapshot identifier with all '-' characters removed.
+    """
     return snapshot_id.replace("-", "")
 
 
+def _snapshot_cache_roots(root: Path, snapshot_id: str) -> list[Path]:
+    """
+    Locate existing snapshot-cache root directories for a given snapshot ID under a base root.
+    
+    Checks for a legacy directory named after the snapshot ID with dashes removed; if that directory exists it is returned as the sole element. Otherwise, for known snapshot IDs returns any of the official subdirectory names that exist under `root`. The result may be an empty list if no matching directories are found.
+    
+    Parameters:
+        root (Path): Base directory to search for snapshot-cache roots.
+        snapshot_id (str): Snapshot identifier (e.g., "snapshot-1").
+    
+    Returns:
+        list[Path]: Existing snapshot-cache root paths matching the snapshot ID (possibly empty).
+    """
+    legacy_root = root / _snapshot_dir_name(snapshot_id)
+    if legacy_root.exists():
+        return [legacy_root]
+
+    official_names = {
+        "snapshot-1": [
+            "longeval_sci_training_2026_abstract",
+            "longeval_sci_training_2026_fulltext",
+        ],
+        "snapshot-2": [
+            "longeval_sci_test-06-08_2026_abstract",
+            "longeval_sci_test-06-08_2026_fulltext",
+        ],
+        "snapshot-3": [
+            "longeval_sci_test-09-11_2026_abstract",
+            "longeval_sci_test-09-11_2026_fulltext",
+        ],
+    }
+    return [root / name for name in official_names.get(snapshot_id, []) if (root / name).exists()]
+
+
 def _load_qrels_file(config: DatasetConfig) -> dict[str, dict[str, int]] | None:
+    """
+    Load relevance judgments (qrels) from the path specified in the provided config.
+    
+    Parameters:
+        config (DatasetConfig): Configuration that must provide `qrels_path` (optional), `qrels_format`, and `qrels_field_map` to map field names for `query_id`, `doc_id`, and `relevance`.
+    
+    Returns:
+        dict[str, dict[str, int]] | None: A mapping from `query_id` to a mapping of `doc_id` to integer relevance. Returns `None` if `config.qrels_path` is not set or the file does not exist.
+    """
     if not config.qrels_path or not Path(config.qrels_path).exists():
         return None
 
@@ -139,13 +191,41 @@ def _load_qrels_file(config: DatasetConfig) -> dict[str, dict[str, int]] | None:
 
 
 def _snapshot_cache_files(root: Path, snapshot_id: str, kind: str) -> list[Path]:
-    snapshot_root = root / _snapshot_dir_name(snapshot_id)
-    if not snapshot_root.exists():
-        raise FileNotFoundError(f"Snapshot directory not found: {snapshot_root}")
-    return sorted(path for path in snapshot_root.rglob("*.jsonl") if kind in str(path).lower())
+    """
+    Locate JSONL files under resolved snapshot-cache root directories whose paths contain the given kind substring.
+    
+    Parameters:
+        root (Path): Base directory used to resolve snapshot-cache roots.
+        snapshot_id (str): Snapshot identifier used to find snapshot-cache root directories.
+        kind (str): Case-insensitive substring to match against file paths (e.g., "abstract" or "fulltext").
+    
+    Returns:
+        list[Path]: Sorted list of matching JSONL file paths.
+    
+    Raises:
+        FileNotFoundError: If no snapshot-cache root directories are found for the given snapshot_id under root.
+    """
+    snapshot_roots = _snapshot_cache_roots(root, snapshot_id)
+    if not snapshot_roots:
+        raise FileNotFoundError(f"Snapshot directory not found for {snapshot_id} under {root}")
+    return sorted(
+        path
+        for snapshot_root in snapshot_roots
+        for path in snapshot_root.rglob("*.jsonl")
+        if kind in str(path).lower()
+    )
 
 
 def _join_snapshot_text(parts: list[str]) -> str:
+    """
+    Concatenates multiple text parts into a single normalized string.
+    
+    Parameters:
+        parts (list[str]): Text fragments to join; fragments that are empty or contain only whitespace are ignored.
+    
+    Returns:
+        str: The non-empty fragments, each trimmed and joined with a single newline, with leading and trailing whitespace removed.
+    """
     return "\n".join(part.strip() for part in parts if part and part.strip()).strip()
 
 
@@ -175,21 +255,44 @@ def iter_snapshot_cache_text_records(config: DatasetConfig, snapshot_id: str, te
 
 
 def _load_snapshot_cache_bundle(config: DatasetConfig, snapshot_id: str) -> DatasetBundle:
+    """
+    Load a dataset bundle from a local snapshot-cache for the given snapshot.
+    
+    Loads document records (abstract and optional fulltext) from resolved snapshot-cache directories, reads queries from a TSV, optionally loads qrels, and returns a DatasetBundle containing documents, queries, qrels, and metadata.
+    
+    Parameters:
+        config (DatasetConfig): Dataset loading configuration (uses dataset_root, load_fulltext, queries_path, split, qrels_variant, etc.).
+        snapshot_id (str): Snapshot identifier to locate and tag loaded records.
+    
+    Returns:
+        DatasetBundle: Bundle with `documents` (merged from snapshot JSONL files), `queries` (from the TSV), optional `qrels`, and `metadata` describing the source.
+    
+    Raises:
+        FileNotFoundError: If no snapshot-cache roots are found, if no JSONL document files are present, or if the resolved queries file does not exist.
+        ValueError: If a snapshot record is missing a document id or if a non-empty query line does not contain exactly two TSV columns.
+    """
     root = Path(config.dataset_root)
-    snapshot_root = root / _snapshot_dir_name(snapshot_id)
-    if not snapshot_root.exists():
-        raise FileNotFoundError(f"Snapshot directory not found: {snapshot_root}")
+    snapshot_roots = _snapshot_cache_roots(root, snapshot_id)
+    if not snapshot_roots:
+        raise FileNotFoundError(f"Snapshot directory not found for {snapshot_id} under {root}")
 
     abstract_files = sorted(
-        path for path in snapshot_root.rglob("*.jsonl") if "abstract" in str(path).lower()
+        path
+        for snapshot_root in snapshot_roots
+        for path in snapshot_root.rglob("*.jsonl")
+        if "abstract" in str(path).lower()
     )
     fulltext_files = []
     if config.load_fulltext:
         fulltext_files = sorted(
-            path for path in snapshot_root.rglob("*.jsonl") if "fulltext" in str(path).lower()
+            path
+            for snapshot_root in snapshot_roots
+            for path in snapshot_root.rglob("*.jsonl")
+            if "fulltext" in str(path).lower()
         )
     if not abstract_files and not fulltext_files:
-        raise FileNotFoundError(f"No JSONL document files found under {snapshot_root}")
+        roots_text = ", ".join(str(path) for path in snapshot_roots)
+        raise FileNotFoundError(f"No JSONL document files found under {roots_text}")
 
     documents_by_id: dict[str, Document] = {}
 
@@ -227,12 +330,14 @@ def _load_snapshot_cache_bundle(config: DatasetConfig, snapshot_id: str) -> Data
         for record in read_records(path, "jsonl"):
             upsert_document(record, is_fulltext=True)
 
-    default_queries_name = (
-        "task1_longeval_adhoc-queries-snapshot-train.tsv"
-        if config.split == "train"
-        else "longeval_adhoc-queries-snapshot-test.tsv"
-    )
-    queries_path = Path(config.queries_path) if config.queries_path else root / default_queries_name
+    if config.queries_path:
+        queries_path = Path(config.queries_path)
+    elif config.split == "train":
+        queries_path = root / "task1_longeval_adhoc-queries-snapshot-train.tsv"
+    else:
+        task_queries_path = root / "task1_longeval_adhoc-queries-snapshot-test.tsv"
+        legacy_queries_path = root / "longeval_adhoc-queries-snapshot-test.tsv"
+        queries_path = task_queries_path if task_queries_path.exists() else legacy_queries_path
     if not queries_path.exists():
         raise FileNotFoundError(f"Queries file not found: {queries_path}")
     queries: list[Query] = []

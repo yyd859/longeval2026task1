@@ -1,4 +1,6 @@
 .venv/
+.conda-jdk17/
+.conda-pkgs/
 .cache/
 outputs/*
 !outputs/reports/
@@ -15,3 +17,6 @@ __pycache__/
 *.faiss
 *.egg-info/
 .vscode/.ropeproject/
+.tmp
+.claude/
+.vscode/

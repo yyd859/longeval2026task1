@@ -1,0 +1,92 @@
+[
+  {
+    "index_id": "idx_20250331_march_baseline",
+    "index_kind": "baseline",
+    "cutoff_date": "2025-03-31",
+    "previous_cutoff_date": "",
+    "action": "march_baseline",
+    "trigger_level": 0,
+    "reason": "publishedDate <= March cutoff"
+  },
+  {
+    "index_id": "idx_20250406_incremental_reindex",
+    "index_kind": "incremental",
+    "cutoff_date": "2025-04-06",
+    "previous_cutoff_date": "2025-03-31",
+    "action": "incremental_reindex",
+    "trigger_level": 2,
+    "reason": "staleness_rate=0.8891>0.8000 and coverage_gap=1628.8368>0.0300; velocity_per_day=773.43>1.50x baseline=11.25"
+  },
+  {
+    "index_id": "idx_20250413_incremental_reindex",
+    "index_kind": "incremental",
+    "cutoff_date": "2025-04-13",
+    "previous_cutoff_date": "2025-04-06",
+    "action": "incremental_reindex",
+    "trigger_level": 2,
+    "reason": "staleness_rate=0.8661>0.8000 and coverage_gap=1669.3640>0.0300; velocity_per_day=1383.71>1.50x baseline=11.25"
+  },
+  {
+    "index_id": "idx_20250420_incremental_reindex",
+    "index_kind": "incremental",
+    "cutoff_date": "2025-04-20",
+    "previous_cutoff_date": "2025-04-13",
+    "action": "incremental_reindex",
+    "trigger_level": 2,
+    "reason": "staleness_rate=0.8523>0.8000 and coverage_gap=1704.0042>0.0300; velocity_per_day=1182.71>1.50x baseline=11.25"
+  },
+  {
+    "index_id": "idx_20250427_incremental_reindex",
+    "index_kind": "incremental",
+    "cutoff_date": "2025-04-27",
+    "previous_cutoff_date": "2025-04-20",
+    "action": "incremental_reindex",
+    "trigger_level": 2,
+    "reason": "staleness_rate=0.8373>0.8000 and coverage_gap=1739.1674>0.0300; velocity_per_day=1200.57>1.50x baseline=11.25"
+  },
+  {
+    "index_id": "idx_20250504_incremental_reindex",
+    "index_kind": "incremental",
+    "cutoff_date": "2025-05-04",
+    "previous_cutoff_date": "2025-04-27",
+    "action": "incremental_reindex",
+    "trigger_level": 2,
+    "reason": "staleness_rate=0.8355>0.8000 and coverage_gap=1748.9331>0.0300; velocity_per_day=333.43>1.50x baseline=11.25"
+  },
+  {
+    "index_id": "idx_20250511_incremental_reindex",
+    "index_kind": "incremental",
+    "cutoff_date": "2025-05-11",
+    "previous_cutoff_date": "2025-05-04",
+    "action": "incremental_reindex",
+    "trigger_level": 2,
+    "reason": "staleness_rate=0.8095>0.8000 and coverage_gap=1813.8368>0.0300; velocity_per_day=2216.00>1.50x baseline=11.25"
+  },
+  {
+    "index_id": "idx_20250518_incremental_reindex",
+    "index_kind": "incremental",
+    "cutoff_date": "2025-05-18",
+    "previous_cutoff_date": "2025-05-11",
+    "action": "incremental_reindex",
+    "trigger_level": 2,
+    "reason": "velocity_per_day=3055.14>1.50x baseline=11.25"
+  },
+  {
+    "index_id": "idx_20250525_incremental_reindex",
+    "index_kind": "incremental",
+    "cutoff_date": "2025-05-25",
+    "previous_cutoff_date": "2025-05-18",
+    "action": "incremental_reindex",
+    "trigger_level": 2,
+    "reason": "velocity_per_day=2549.43>1.50x baseline=11.25"
+  },
+  {
+    "index_id": "idx_20250601_incremental_reindex",
+    "index_kind": "incremental",
+    "cutoff_date": "2025-06-01",
+    "previous_cutoff_date": "2025-05-25",
+    "action": "incremental_reindex",
+    "trigger_level": 2,
+    "reason": "velocity_per_day=1318.00>1.50x baseline=11.25"
+  }
+]
