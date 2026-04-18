@@ -1,0 +1,11 @@
+index_id,index_kind,cutoff_date,previous_cutoff_date,action,trigger_level,reason
+idx_20250331_march_baseline,baseline,2025-03-31,,march_baseline,0,publishedDate <= March cutoff
+idx_20250406_incremental_reindex,incremental,2025-04-06,2025-03-31,incremental_reindex,2,staleness_rate=0.8891>0.8000 and coverage_gap=1628.8368>0.0300; velocity_per_day=773.43>1.50x baseline=11.25
+idx_20250413_incremental_reindex,incremental,2025-04-13,2025-04-06,incremental_reindex,2,staleness_rate=0.8661>0.8000 and coverage_gap=1669.3640>0.0300; velocity_per_day=1383.71>1.50x baseline=11.25
+idx_20250420_incremental_reindex,incremental,2025-04-20,2025-04-13,incremental_reindex,2,staleness_rate=0.8523>0.8000 and coverage_gap=1704.0042>0.0300; velocity_per_day=1182.71>1.50x baseline=11.25
+idx_20250427_incremental_reindex,incremental,2025-04-27,2025-04-20,incremental_reindex,2,staleness_rate=0.8373>0.8000 and coverage_gap=1739.1674>0.0300; velocity_per_day=1200.57>1.50x baseline=11.25
+idx_20250504_incremental_reindex,incremental,2025-05-04,2025-04-27,incremental_reindex,2,staleness_rate=0.8355>0.8000 and coverage_gap=1748.9331>0.0300; velocity_per_day=333.43>1.50x baseline=11.25
+idx_20250511_incremental_reindex,incremental,2025-05-11,2025-05-04,incremental_reindex,2,staleness_rate=0.8095>0.8000 and coverage_gap=1813.8368>0.0300; velocity_per_day=2216.00>1.50x baseline=11.25
+idx_20250518_incremental_reindex,incremental,2025-05-18,2025-05-11,incremental_reindex,2,velocity_per_day=3055.14>1.50x baseline=11.25
+idx_20250525_incremental_reindex,incremental,2025-05-25,2025-05-18,incremental_reindex,2,velocity_per_day=2549.43>1.50x baseline=11.25
+idx_20250601_incremental_reindex,incremental,2025-06-01,2025-05-25,incremental_reindex,2,velocity_per_day=1318.00>1.50x baseline=11.25
