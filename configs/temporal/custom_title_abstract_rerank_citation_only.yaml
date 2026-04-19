@@ -1,0 +1,16 @@
+extends: custom_title_abstract_rerank_temporal_citation.yaml
+run_name: custom_title_abstract_rerank_citation_only
+
+temporal:
+  integration_mode: citation_only
+  base_weight: 1.0
+  citation_total_weight: 0.04
+  citation_recent_weight: 0.05
+  citation_foundation_weight: 0.04
+  citation_emerging_weight: 0.05
+  citation_outbound_weight: 0.01
+  query_profile_citation_beta_explicit: 0.25
+  query_profile_citation_beta_high_share: 0.12
+  query_profile_citation_beta_default: 0.03
+  overlay_candidate_k: 200
+  overlay_relevance_threshold: 0.05

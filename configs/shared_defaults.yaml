@@ -33,6 +33,7 @@ rerank:
 
 temporal:
   enabled: false
+  integration_mode: direct
   rerank_top_k: 200
   evaluation_time_field: snapshot
   date_fields:
@@ -50,6 +51,21 @@ temporal:
   citation_cache_root: outputs/cache/temporal_citations
   citation_recent_window_days: 180
   exclude_self_citations: true
+  query_profile_top_k: 20
+  query_profile_temporal_entropy_threshold: 0.55
+  query_profile_high_citation_share_threshold: 0.3
+  query_profile_high_citation_count_threshold: 10
+  query_profile_year_span_threshold: 5
+  query_profile_old_doc_window_years: 5
+  query_profile_old_doc_share_threshold: 0.5
+  query_profile_temporal_alpha_explicit: 0.25
+  query_profile_temporal_alpha_concentrated: 0.15
+  query_profile_temporal_alpha_default: 0.03
+  query_profile_citation_beta_explicit: 0.25
+  query_profile_citation_beta_high_share: 0.12
+  query_profile_citation_beta_default: 0.03
+  overlay_candidate_k: 200
+  overlay_relevance_threshold: 0.05
   freshness_half_life_days: 90.0
   age_half_life_days: 365.0
   base_weight: 1.0

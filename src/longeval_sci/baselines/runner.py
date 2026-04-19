@@ -307,6 +307,42 @@ def _build_dense(config: ExperimentConfig, documents: list[Document], snapshot_i
             )
             fresh_retriever.build_index_from_documents(documents, rebuild_dir)
             return fresh_retriever
+
+        loaded_version = retriever.model_version
+        try:
+            import sentence_transformers as _st
+            current_version: str | None = _st.__version__
+        except Exception:
+            current_version = None
+        if loaded_version is not None and current_version is not None and loaded_version != current_version:
+            LOGGER.warning(
+                "Dense index at %s was built with sentence-transformers==%s but current version is %s; rebuilding",
+                dense_index_dir,
+                loaded_version,
+                current_version,
+            )
+            canonical_dir = canonical_dense_index_dir(
+                config,
+                snapshot_id,
+                text_mode,
+                config.retrieval.model_name,
+                backend_label="dense",
+            )
+            rebuild_dir = ensure_dir(canonical_dir) if canonical_dir is not None else dense_index_dir
+            fresh_retriever = DenseRetriever(
+                model_name=config.retrieval.model_name,
+                text_mode=text_mode,
+                normalize_embeddings=config.retrieval.normalize_embeddings,
+                query_prefix=config.retrieval.query_prefix,
+                document_prefix=config.retrieval.document_prefix,
+                batch_size=config.runtime.batch_size,
+                device=config.runtime.device,
+                encode_chunk_size=config.retrieval.encode_chunk_size,
+                search_chunk_size=config.retrieval.search_chunk_size,
+            )
+            fresh_retriever.build_index_from_documents(documents, rebuild_dir)
+            return fresh_retriever
+
         return retriever
 
     retriever.build_index_from_documents(documents, dense_index_dir)

@@ -5,6 +5,7 @@ from __future__ import annotations
 from collections import defaultdict
 from dataclasses import dataclass
 from math import log1p
+from pathlib import Path
 from typing import Callable
 
 from longeval_sci.config import ExperimentConfig
@@ -14,6 +15,18 @@ from longeval_sci.temporal.cluster import lookup_cluster_hints
 from longeval_sci.temporal.features import compute_temporal_features, resolve_evaluation_time
 from longeval_sci.temporal.history import lookup_historical_hints
 from longeval_sci.temporal.intent import TemporalIntentPrediction, classify_temporal_intent
+from longeval_sci.temporal.query_profile import build_query_evidence_profile
+from longeval_sci.temporal.router import classify_evidence_route
+
+
+_CITATION_COMPONENT_KEYS = (
+    "citation_total",
+    "citation_recent",
+    "citation_foundation",
+    "citation_emerging",
+    "citation_outbound",
+)
+_INTEGRATION_MODES = {"direct", "citation_only", "router", "additive"}
 
 
 @dataclass(slots=True)
@@ -21,8 +34,10 @@ class TemporalScoreBreakdown:
     doc_id: str
     base_score: float
     temporal_score: float
+    citation_score: float
     final_score: float
     intent_label: str
+    evidence_route: str
 
 
 def _normalize_scores(results: list[SearchResult]) -> dict[str, float]:
@@ -126,6 +141,134 @@ def _citation_signal_bundle(feature: CitationTemporalFeatures | None) -> dict[st
     }
 
 
+def _integration_mode(config: ExperimentConfig) -> str:
+    mode = config.temporal.integration_mode.lower().strip()
+    if mode not in _INTEGRATION_MODES:
+        raise ValueError(f"Unsupported temporal integration_mode: {config.temporal.integration_mode}")
+    return mode
+
+
+def _citation_features_requested(config: ExperimentConfig) -> bool:
+    mode = _integration_mode(config)
+    return config.temporal.use_citation_features or mode in {"citation_only", "router", "additive"}
+
+
+def _load_citation_lookup(
+    *,
+    config: ExperimentConfig,
+    evaluation_time,
+    grouped: dict[str, list[SearchResult]],
+    progress_callback: Callable[[str, int, int, str], None] | None,
+) -> dict[str, CitationTemporalFeatures]:
+    if not _citation_features_requested(config) or not config.temporal.citation_network_path:
+        return {}
+
+    citation_path = Path(config.temporal.citation_network_path)
+    candidate_doc_ids: set[str] = set()
+    for query_results in grouped.values():
+        ranked = sorted(query_results, key=lambda item: item.rank)
+        for result in ranked[: config.temporal.rerank_top_k]:
+            candidate_doc_ids.add(result.doc_id)
+
+    if not citation_path.exists():
+        if progress_callback is not None:
+            progress_callback(
+                "citation_features",
+                len(candidate_doc_ids),
+                len(candidate_doc_ids),
+                f"Citation file not found at {citation_path}; using zero citation scores.",
+            )
+        return {}
+
+    if progress_callback is not None:
+        progress_callback(
+            "citation_features",
+            0,
+            len(candidate_doc_ids),
+            f"Building citation features for {len(candidate_doc_ids)} candidate documents.",
+        )
+    citation_lookup = load_or_build_citation_feature_cache(
+        citation_path,
+        cutoff=evaluation_time,
+        allowed_doc_ids=candidate_doc_ids,
+        recent_window_days=config.temporal.citation_recent_window_days,
+        exclude_self_citations=config.temporal.exclude_self_citations,
+        cache_root=config.temporal.citation_cache_root,
+    )
+    if progress_callback is not None:
+        progress_callback(
+            "citation_features",
+            len(candidate_doc_ids),
+            len(candidate_doc_ids),
+            f"Loaded citation features for {len(citation_lookup)} candidate documents.",
+        )
+    return citation_lookup
+
+
+def _temporal_score(weights: dict[str, float], features) -> float:
+    return (
+        weights["recency"] * features.recency_score
+        + weights["update"] * features.update_score
+        + weights["foundation"] * features.foundation_score
+        + weights["novelty"] * features.novelty_score
+    )
+
+
+def _citation_score(
+    weights: dict[str, float],
+    normalized_citation_components: dict[str, dict[str, float]],
+    doc_id: str,
+) -> float:
+    return sum(
+        weights[key] * normalized_citation_components[key].get(doc_id, 0.0)
+        for key in _CITATION_COMPONENT_KEYS
+    )
+
+
+def _final_score(
+    *,
+    mode: str,
+    route: str,
+    relevance_score: float,
+    temporal_score: float,
+    citation_score: float,
+) -> float:
+    if mode == "citation_only":
+        return relevance_score + citation_score
+    if mode == "router":
+        if route == "citation":
+            return relevance_score + citation_score
+        if route == "mixed":
+            return relevance_score + temporal_score + citation_score
+        return relevance_score + temporal_score
+    return relevance_score + temporal_score + citation_score
+
+
+def _overlay_enabled(config: ExperimentConfig, result: SearchResult, relevance_score: float) -> bool:
+    if result.rank > config.temporal.overlay_candidate_k:
+        return False
+    return relevance_score >= config.temporal.overlay_relevance_threshold
+
+
+def _route_with_profile(query_text: str, profile, config: ExperimentConfig) -> str:
+    text_route = classify_evidence_route(query_text)
+    temporal_signal = (
+        profile.explicit_temporal
+        or profile.temporal_alpha >= config.temporal.query_profile_temporal_alpha_concentrated
+    )
+    citation_signal = (
+        profile.explicit_citation
+        or profile.citation_beta >= config.temporal.query_profile_citation_beta_high_share
+    )
+    if temporal_signal and citation_signal:
+        return "mixed"
+    if citation_signal:
+        return "citation"
+    if temporal_signal:
+        return "temporal"
+    return text_route
+
+
 def temporal_rerank_results(
     *,
     results: list[SearchResult],
@@ -136,6 +279,7 @@ def temporal_rerank_results(
     if not config.temporal.enabled:
         return results
 
+    mode = _integration_mode(config)
     evaluation_time = resolve_evaluation_time(bundle, config.temporal)
     doc_lookup: dict[str, Document] = {document.doc_id: document for document in bundle.documents}
     query_lookup: dict[str, Query] = {query.query_id: query for query in bundle.queries}
@@ -143,35 +287,12 @@ def temporal_rerank_results(
     for result in results:
         grouped[result.query_id].append(result)
 
-    citation_lookup: dict[str, CitationTemporalFeatures] = {}
-    if config.temporal.use_citation_features and config.temporal.citation_network_path:
-        candidate_doc_ids: set[str] = set()
-        for query_results in grouped.values():
-            ranked = sorted(query_results, key=lambda item: item.rank)
-            for result in ranked[: config.temporal.rerank_top_k]:
-                candidate_doc_ids.add(result.doc_id)
-        if progress_callback is not None:
-            progress_callback(
-                "citation_features",
-                0,
-                len(candidate_doc_ids),
-                f"Building citation features for {len(candidate_doc_ids)} candidate documents.",
-            )
-        citation_lookup = load_or_build_citation_feature_cache(
-            config.temporal.citation_network_path,
-            cutoff=evaluation_time,
-            allowed_doc_ids=candidate_doc_ids,
-            recent_window_days=config.temporal.citation_recent_window_days,
-            exclude_self_citations=config.temporal.exclude_self_citations,
-            cache_root=config.temporal.citation_cache_root,
-        )
-        if progress_callback is not None:
-            progress_callback(
-                "citation_features",
-                len(candidate_doc_ids),
-                len(candidate_doc_ids),
-                f"Loaded citation features for {len(citation_lookup)} candidate documents.",
-            )
+    citation_lookup = _load_citation_lookup(
+        config=config,
+        evaluation_time=evaluation_time,
+        grouped=grouped,
+        progress_callback=progress_callback,
+    )
 
     reranked_all: list[SearchResult] = []
     total_queries = len(query_lookup)
@@ -195,6 +316,14 @@ def temporal_rerank_results(
             label="evolving",
             scores={"evolving": 1.0},
         )
+        query_profile = build_query_evidence_profile(
+            query_text=query.text,
+            ranked_results=query_results,
+            doc_lookup=doc_lookup,
+            citation_lookup=citation_lookup,
+            config=config.temporal,
+        )
+        evidence_route = _route_with_profile(query.text, query_profile, config) if mode == "router" else mode
         weights = _intent_weights(config, intent)
         historical_hints = lookup_historical_hints(query.text) if config.temporal.use_history else None
         cluster_hints = lookup_cluster_hints(query.text) if config.temporal.use_cluster_fallback else None
@@ -216,7 +345,7 @@ def temporal_rerank_results(
 
         normalized_citation_components = {
             key: _normalize_named_values({doc_id: values[key] for doc_id, values in per_doc_citation.items()})
-            for key in ("citation_total", "citation_recent", "citation_foundation", "citation_emerging", "citation_outbound")
+            for key in _CITATION_COMPONENT_KEYS
         }
 
         scored: list[tuple[SearchResult, float]] = []
@@ -226,22 +355,28 @@ def temporal_rerank_results(
                 scored.append((result, normalized.get(result.doc_id, 0.0)))
                 continue
             features = per_doc_temporal[result.doc_id]
-            final_score = (
-                weights["base"] * normalized.get(result.doc_id, 0.0)
-                + weights["recency"] * features.recency_score
-                + weights["update"] * features.update_score
-                + weights["foundation"] * features.foundation_score
-                + weights["novelty"] * features.novelty_score
-                + weights["citation_total"] * normalized_citation_components["citation_total"].get(result.doc_id, 0.0)
-                + weights["citation_recent"] * normalized_citation_components["citation_recent"].get(result.doc_id, 0.0)
-                + weights["citation_foundation"] * normalized_citation_components["citation_foundation"].get(result.doc_id, 0.0)
-                + weights["citation_emerging"] * normalized_citation_components["citation_emerging"].get(result.doc_id, 0.0)
-                + weights["citation_outbound"] * normalized_citation_components["citation_outbound"].get(result.doc_id, 0.0)
-            )
+            normalized_relevance = normalized.get(result.doc_id, 0.0)
+            relevance_score = weights["base"] * normalized_relevance
+            temporal_score = _temporal_score(weights, features)
+            citation_score = _citation_score(weights, normalized_citation_components, result.doc_id)
             if historical_hints is not None and result.doc_id in historical_hints.prior_docs:
-                final_score += config.temporal.history_boost
+                temporal_score += config.temporal.history_boost
             if cluster_hints is not None and result.doc_id in cluster_hints.prior_docs:
-                final_score += config.temporal.cluster_boost
+                temporal_score += config.temporal.cluster_boost
+            if mode in {"citation_only", "router", "additive"}:
+                if _overlay_enabled(config, result, normalized_relevance):
+                    temporal_score *= query_profile.temporal_alpha
+                    citation_score *= query_profile.citation_beta
+                else:
+                    temporal_score = 0.0
+                    citation_score = 0.0
+            final_score = _final_score(
+                mode=mode,
+                route=evidence_route,
+                relevance_score=relevance_score,
+                temporal_score=temporal_score,
+                citation_score=citation_score,
+            )
             scored.append((result, final_score))
 
         ranked_head = sorted(scored, key=lambda item: item[1], reverse=True)
@@ -281,6 +416,6 @@ def temporal_rerank_results(
                 "temporal_reranking",
                 index,
                 total_queries,
-                f"Finished temporal overlay for query {index}/{total_queries} ({intent.label}).",
+                f"Finished temporal overlay for query {index}/{total_queries} ({intent.label}; {evidence_route}).",
             )
     return reranked_all

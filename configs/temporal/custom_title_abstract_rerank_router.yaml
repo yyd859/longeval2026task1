@@ -1,0 +1,27 @@
+extends: custom_title_abstract_rerank_temporal_citation.yaml
+run_name: custom_title_abstract_rerank_router
+
+temporal:
+  integration_mode: router
+  base_weight: 1.0
+  recency_weight: 0.06
+  update_weight: 0.04
+  foundation_weight: 0.04
+  novelty_weight: 0.03
+  citation_total_weight: 0.04
+  citation_recent_weight: 0.05
+  citation_foundation_weight: 0.04
+  citation_emerging_weight: 0.05
+  citation_outbound_weight: 0.01
+  query_profile_top_k: 20
+  query_profile_temporal_alpha_explicit: 0.25
+  query_profile_temporal_alpha_concentrated: 0.15
+  query_profile_temporal_alpha_default: 0.03
+  query_profile_year_span_threshold: 5
+  query_profile_old_doc_window_years: 5
+  query_profile_old_doc_share_threshold: 0.5
+  query_profile_citation_beta_explicit: 0.25
+  query_profile_citation_beta_high_share: 0.12
+  query_profile_citation_beta_default: 0.03
+  overlay_candidate_k: 200
+  overlay_relevance_threshold: 0.05

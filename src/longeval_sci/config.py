@@ -53,6 +53,7 @@ class RetrievalConfig:
     encode_chunk_size: int = 2048
     search_chunk_size: int = 50000
     service_base_url: str = "http://localhost:6543/v1"
+    hot_cutoff_months: int = 6
 
 
 @dataclass(slots=True)
@@ -75,6 +76,7 @@ class ExpansionConfig:
 @dataclass(slots=True)
 class TemporalConfig:
     enabled: bool = False
+    integration_mode: str = "direct"
     rerank_top_k: int = 200
     evaluation_time_field: str = "snapshot"
     date_fields: list[str] = field(default_factory=lambda: ["publishedDate", "createdDate", "updatedDate"])
@@ -91,6 +93,21 @@ class TemporalConfig:
     citation_cache_root: str | None = "outputs/cache/temporal_citations"
     citation_recent_window_days: int = 180
     exclude_self_citations: bool = True
+    query_profile_top_k: int = 20
+    query_profile_temporal_entropy_threshold: float = 0.55
+    query_profile_high_citation_share_threshold: float = 0.3
+    query_profile_high_citation_count_threshold: int = 10
+    query_profile_year_span_threshold: int = 5
+    query_profile_old_doc_window_years: int = 5
+    query_profile_old_doc_share_threshold: float = 0.5
+    query_profile_temporal_alpha_explicit: float = 0.25
+    query_profile_temporal_alpha_concentrated: float = 0.15
+    query_profile_temporal_alpha_default: float = 0.03
+    query_profile_citation_beta_explicit: float = 0.25
+    query_profile_citation_beta_high_share: float = 0.12
+    query_profile_citation_beta_default: float = 0.03
+    overlay_candidate_k: int = 200
+    overlay_relevance_threshold: float = 0.05
     freshness_half_life_days: float = 90.0
     age_half_life_days: float = 365.0
     base_weight: float = 1.0

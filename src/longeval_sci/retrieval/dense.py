@@ -102,15 +102,19 @@ class DenseRetriever:
         self.doc_ids: list[str] = []
         self.documents: dict[str, Document] = {}
         self.embeddings_path: Path | None = None
+        self.model_version: str | None = None
         self._encoder = self._load_encoder()
         self.embedding_dimension: int | None = None
 
     def _load_encoder(self):
         try:
             from sentence_transformers import SentenceTransformer
+            import sentence_transformers as _st
 
+            self.model_version = _st.__version__
             return SentenceTransformer(self.model_name, device=self.device)
         except Exception:
+            self.model_version = None
             return HashingEmbedder()
 
     def _encode(self, texts: list[str]) -> np.ndarray:
@@ -242,6 +246,7 @@ class DenseRetriever:
         metadata = {
             "doc_ids": self.doc_ids,
             "model_name": self.model_name,
+            "model_version": self.model_version,
             "text_mode": self.text_mode,
             "normalize_embeddings": self.normalize_embeddings,
             "query_prefix": self.query_prefix,
@@ -274,6 +279,7 @@ class DenseRetriever:
 
         self.doc_ids = metadata["doc_ids"]
         self.model_name = metadata.get("model_name", self.model_name)
+        self.model_version = metadata.get("model_version", self.model_version)
         self.text_mode = metadata.get("text_mode", self.text_mode)
         self.normalize_embeddings = metadata.get("normalize_embeddings", self.normalize_embeddings)
         self.query_prefix = metadata.get("query_prefix", self.query_prefix)
